@@ -1,0 +1,944 @@
+generator client {
+  provider = "prisma-client-py"
+  enable_experimental_decimal = true
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model alerts {
+  id                  Int       @id @default(autoincrement())
+  type                String
+  seen                Boolean   @default(false)
+  title               String
+  description         String
+  current_date_start  DateTime  @db.Date
+  current_date_end    DateTime  @db.Date
+  previous_date_start DateTime  @db.Date
+  previous_date_end   DateTime  @db.Date
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime? @updatedAt
+  deleted_at          DateTime? @db.Timestamptz(6)
+}
+
+model areas {
+  id               Int                      @id @default(autoincrement())
+  sub_id           Int?
+  cmp_area_id      String                   @db.VarChar(30)
+  name             String                   @db.VarChar(50)
+  distributor_id   Int
+  geometry         Unsupported("geometry")?
+  region_id        Int?
+  zone_id          Int?
+  color_id         Int?
+  created_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?                @db.Timestamptz(6)
+  colors           colors?                  @relation(fields: [color_id], references: [id], onUpdate: NoAction)
+  regions          regions?                 @relation(fields: [region_id], references: [id], onUpdate: NoAction)
+  zones            zones?                   @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  distributor      distributors             @relation(fields: [distributor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  area_managers    area_managers[]
+  area_teams       area_teams[]
+  customer_details customer_details[]
+  healthcentres    healthcentres[]
+  territories      territories[]
+}
+
+model area_managers {
+  id         Int       @id @default(autoincrement())
+  area_id    Int
+  manager_id Int
+  start      DateTime?
+  end        DateTime?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  areas      areas     @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  managers   managers  @relation(fields: [manager_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model area_teams {
+  id         Int       @id @default(autoincrement())
+  area_id    Int
+  team_id    Int
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  areas      areas     @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  teams      teams     @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model city {
+  id            Int             @id @default(autoincrement())
+  name          String          @db.VarChar(50)
+  latitude      Decimal?        @db.Decimal
+  longitude     Decimal?        @db.Decimal
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime?       @db.Timestamptz(6)
+  distributors  distributors[]
+  healthcentres healthcentres[]
+}
+
+model colors {
+  id                 Int                  @id @default(autoincrement())
+  color_name         String               @db.VarChar(50)
+  code               String?              @db.VarChar(50)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime?            @db.Timestamptz(6)
+  areas              areas[]
+  customer_types     customer_types[]
+  healthcentre_types healthcentre_types[]
+  regions            regions[]
+  territories        territories[]
+  zones              zones[]
+}
+
+model companies {
+  id             Int            @id @default(autoincrement())
+  cmp_company_id String         @db.VarChar(30)
+  name           String         @db.VarChar(50)
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime?      @db.Timestamptz(6)
+  targets        targets[]
+  teams          teams[]
+  distributors   distributors[]
+}
+
+model customer_types {
+  id          Int         @id @default(autoincrement())
+  cmp_type_id String      @unique @db.VarChar(30)
+  type        String      @unique @db.VarChar(50)
+  color_id    Int?
+  created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime    @default(now()) @db.Timestamptz(6)
+  deleted_at  DateTime?   @db.Timestamptz(6)
+  colors      colors?     @relation(fields: [color_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customers   customers[]
+}
+
+model customers {
+  id               Int                @id @default(autoincrement())
+  cmp_customer_id  String             @unique @db.VarChar(30)
+  name             String             @db.VarChar(100)
+  customer_type_id Int
+  email            String?            @unique
+  mobile           String?            @unique
+  address          String?
+  cnic             String?
+  latitude         Decimal?           @db.Decimal
+  longitude        Decimal?           @db.Decimal
+  image            String?
+  shop_image       String?
+  users_id         Int?
+  isnq             Boolean?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?          @db.Timestamptz(6)
+  status           CUSTOMER_STATUS?   @default(PENDING)
+  customer_types   customer_types     @relation(fields: [customer_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users            users?             @relation(fields: [users_id], references: [id], onUpdate: NoAction)
+  invoice          invoice[]
+  orders           orders[]
+  customer_details customer_details[]
+}
+
+model customer_details {
+  id             Int          @id @default(autoincrement())
+  customer_id    Int
+  region_id      Int
+  zone_id        Int
+  area_id        Int
+  territory_id   Int
+  ims_brick_id   String?
+  distributor_id Int
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime?    @db.Timestamptz(6)
+  distributor    distributors @relation(fields: [distributor_id], references: [id], onUpdate: NoAction)
+  customer       customers    @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  regions        regions      @relation(fields: [region_id], references: [id], onUpdate: NoAction)
+  zones          zones        @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  areas          areas        @relation(fields: [area_id], references: [id], onUpdate: NoAction)
+  territories    territories  @relation(fields: [territory_id], references: [id], onUpdate: NoAction)
+  ims_brick      ims_brick?   @relation(fields: [ims_brick_id], references: [id], onUpdate: NoAction)
+}
+
+model distributors {
+  id                 Int                @id @default(autoincrement())
+  cmp_distributor_id Int
+  name               String             @db.VarChar(50)
+  company_id         Int
+  city_id            Int?
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime           @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime?          @db.Timestamptz(6)
+  companies          companies          @relation(fields: [company_id], references: [id], onUpdate: NoAction)
+  city               city?              @relation(fields: [city_id], references: [id], onUpdate: NoAction)
+  customer_details   customer_details[]
+  product_details    product_details[]
+  teams_details      teams_details[]
+  regions            regions[]
+  zones              zones[]
+  areas              areas[]
+  territories        territories[]
+}
+
+model doctor_calls {
+  id         Int                      @id @default(autoincrement())
+  doctor_id  Int
+  manager_id Int?
+  latitude   Decimal?                 @db.Decimal
+  longitude  Decimal?                 @db.Decimal
+  call_date  DateTime?                @default(now()) @db.Timestamptz(6)
+  created_at DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime?                @db.Timestamptz(6)
+  geometry   Unsupported("geometry")?
+  dr_calls   Int?
+  doctor     doctors                  @relation(fields: [doctor_id], references: [id], onUpdate: NoAction)
+  managers   managers?                @relation(fields: [manager_id], references: [id], onUpdate: NoAction)
+}
+
+enum DOCTOR_CATEGORY {
+  A
+  B
+  C
+  D
+}
+
+model doctors {
+  id              Int              @id @default(autoincrement())
+  cmp_doctor_id   String           @unique @db.VarChar(30)
+  name            String           @db.VarChar(50)
+  doctor_type_id  Int?
+  category        DOCTOR_CATEGORY?
+  mobile          BigInt?          @unique
+  email           String?          @unique @db.VarChar(250)
+  image           Int?
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime         @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?        @db.Timestamptz(6)
+  doctor_calls    doctor_calls[]
+  health_centres  healthcentres[]
+  qualifications  qualifications[]
+  specializations specializatons[]
+  doctor_plan     doctor_plan[]
+  plan_details    plan_details[]
+  manager_calls   manager_calls[]
+  roi             roi[]
+}
+
+model healthcentres {
+  id                   Int                      @id @default(autoincrement())
+  cmp_hc_id            String?                  @unique @db.VarChar(30)
+  name                 String                   @db.VarChar(100)
+  healthcentre_type_id Int
+  image                String?
+  latitude             Decimal?                 @db.Decimal
+  longitude            Decimal?                 @db.Decimal
+  radius               Int?                     @default(50)
+  mobile               BigInt?                  @unique
+  address              String?
+  city_id              Int?
+  region_id            Int?
+  zone_id              Int?
+  area_id              Int?
+  territory_id         Int?
+  ims_brick_id         String?
+  geometry             Unsupported("geometry")?
+  created_at           DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at           DateTime?                @db.Timestamptz(6)
+  areas                areas?                   @relation(fields: [area_id], references: [id], onUpdate: NoAction)
+  healthcentre_types   healthcentre_types       @relation(fields: [healthcentre_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  regions              regions?                 @relation(fields: [region_id], references: [id], onUpdate: NoAction)
+  territories          territories?             @relation(fields: [territory_id], references: [id], onUpdate: NoAction)
+  zones                zones?                   @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  city                 city?                    @relation(fields: [city_id], references: [id], onUpdate: NoAction)
+  ims_brick            ims_brick?               @relation(fields: [ims_brick_id], references: [id], onUpdate: NoAction)
+  doctors              doctors[]
+  doctor_plan          doctor_plan[]
+  manager_calls        manager_calls[]
+  roi                  roi[]
+}
+
+model healthcentre_types {
+  id            Int             @id @default(autoincrement())
+  type          String          @unique @db.VarChar(50)
+  color_id      Int?
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime?       @db.Timestamptz(6)
+  colors        colors?         @relation(fields: [color_id], references: [id], onUpdate: NoAction)
+  healthcentres healthcentres[]
+}
+
+model invoice {
+  id              Int               @id @default(autoincrement())
+  inovice_id      Int?
+  cmp_invoice_id  String?           @unique @db.VarChar(30)
+  invoice_date    DateTime?         @db.Date
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?         @db.Timestamptz(6)
+  cust_id         Int?
+  customers       customers?        @relation(fields: [cust_id], references: [id], onUpdate: NoAction)
+  invoice_details invoice_details[]
+}
+
+model invoice_details {
+  id               Int       @id @default(autoincrement())
+  invoice_id       Int
+  product_id       Int?
+  product_quantity Int?
+  product_price    Decimal?
+  user_id          Int?
+  status           String?   @default("PENDING") @db.VarChar(50)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime? @db.Timestamptz(6)
+  invoice          invoice   @relation(fields: [invoice_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products         products? @relation(fields: [product_id], references: [id], onUpdate: NoAction)
+  users            users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+model managers {
+  id                 Int                  @id @default(autoincrement())
+  cmp_manager_id     String               @db.VarChar(30)
+  name               String               @db.VarChar(50)
+  email              String?              @unique @db.VarChar(250)
+  password           String?
+  mobile             String?              @unique
+  image              String?
+  manager_type       MANAGER_TYPE?
+  user_type          USER_TYPE            @default(MANAGER)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime?            @db.Timestamptz(6)
+  refresh_token      String?              @unique
+  permissionsId      Int?
+  company_id         Int
+  permissions        permissions?         @relation(fields: [permissionsId], references: [id])
+  area_managers      area_managers[]
+  doctor_calls       doctor_calls[]
+  managers_details   managers_details[]
+  region_managers    region_managers[]
+  territory_managers territory_managers[]
+  zone_managers      zone_managers[]
+  plans              plans[]
+  doctor_plan        doctor_plan[]
+  manager_calls      manager_calls[]
+  roi                roi[]
+  chat               chat[]
+}
+
+model manager_calls {
+  id                     Int           @id @default(autoincrement())
+  doctor_call_id         Int
+  date                   DateTime
+  manager_id             Int
+  doctor_id              Int
+  doctor_call_latitude   Decimal
+  doctor_call_longitude  Decimal
+  healthcentre_id        Int
+  healthcentre_latitude  Decimal
+  healthcentre_longitude Decimal
+  distance_in_meters     Decimal
+  status                 String
+  created_at             DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime      @default(now()) @db.Timestamptz(6)
+  deleted_at             DateTime?     @db.Timestamptz(6)
+  doctor                 doctors       @relation(fields: [doctor_id], references: [id], onUpdate: NoAction)
+  healthcentre           healthcentres @relation(fields: [healthcentre_id], references: [id], onUpdate: NoAction)
+  managers               managers?     @relation(fields: [manager_id], references: [id], onUpdate: NoAction)
+}
+
+model managers_details {
+  id           Int       @id @default(autoincrement())
+  manager_id   Int
+  team_id      Int?
+  reporting_to Int?
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime? @db.Timestamptz(6)
+  managers     managers  @relation(fields: [manager_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  teams        teams?    @relation(fields: [team_id], references: [id], onUpdate: NoAction)
+}
+
+model order_details {
+  id               Int       @id @default(autoincrement())
+  order_id         Int
+  product_id       Int
+  product_quantity String?
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime? @db.Timestamptz(6)
+  orders           orders    @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products         products  @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model orders {
+  id            Int             @id @default(autoincrement())
+  customer_id   Int
+  order_date    Int
+  status        String?         @db.VarChar(50)
+  user_id       Int?
+  created_at    DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime        @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime?       @db.Timestamptz(6)
+  order_details order_details[]
+  customers     customers       @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users         users?          @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+}
+
+model permissions {
+  id             Int        @id @default(autoincrement())
+  regions        Int[]
+  zones          Int[]
+  areas          Int[]
+  territories    Int[]
+  product_groups Int[]
+  products       Int[]
+  created_at     DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime   @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime?  @db.Timestamptz(6)
+  managers       managers[]
+}
+
+model product_details {
+  id             Int          @id @default(autoincrement())
+  product_id     Int
+  distributor_id Int
+  team_id        Int
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime?    @db.Timestamptz(6)
+  products       products     @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  distributor    distributors @relation(fields: [distributor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  teams          teams        @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model product_groups {
+  id           Int        @id @default(autoincrement())
+  group        String     @unique @db.VarChar(50)
+  created_at   DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime   @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime?  @db.Timestamptz(6)
+  cmp_group_id String     @unique @db.VarChar(50)
+  products     products[]
+  targets      targets[]
+}
+
+model products {
+  id               Int                 @id @default(autoincrement())
+  cmp_product_id   String
+  name             String              @db.VarChar(50)
+  price            Float
+  created_at       DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime            @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?           @db.Timestamptz(6)
+  product_group_id Int?
+  company_id       Int?
+  product_groups   product_groups?     @relation(fields: [product_group_id], references: [id], onUpdate: NoAction)
+  invoice_details  invoice_details[]
+  order_details    order_details[]
+  product_details  product_details[]
+  targets          targets[]
+  imsCustomerSales ims_customer_sale[]
+  imsSales         ims_sale[]
+}
+
+model qualifications {
+  id         Int       @id @default(autoincrement())
+  name       String    @db.VarChar(50)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  doctors    doctors[]
+}
+
+model regions {
+  id               Int                      @id @default(autoincrement())
+  sub_id           Int?
+  cmp_region_id    String                   @db.VarChar(30)
+  distributor_id   Int
+  latitude         Decimal?
+  longitude        Decimal?
+  geometry         Unsupported("geometry")?
+  color_id         Int?
+  created_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?                @db.Timestamptz(6)
+  colors           colors?                  @relation(fields: [color_id], references: [id], onUpdate: NoAction)
+  name             String                   @db.VarChar(50)
+  distributor      distributors             @relation(fields: [distributor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  areas            areas[]
+  customer_details customer_details[]
+  healthcentres    healthcentres[]
+  region_managers  region_managers[]
+  targets          targets[]
+  territories      territories[]
+  zones            zones[]
+  region_teams     region_teams[]
+}
+
+model region_managers {
+  id         Int       @id @default(autoincrement())
+  region_id  Int
+  manager_id Int
+  start      DateTime?
+  end        DateTime?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  managers   managers  @relation(fields: [manager_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  regions    regions   @relation(fields: [region_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model region_teams {
+  id         Int       @id @default(autoincrement())
+  region_id  Int
+  team_id    Int
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  regions    regions   @relation(fields: [region_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  teams      teams     @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model roi {
+  id              Int           @id @default(autoincrement())
+  doctor_id       Int
+  healthcentre_id Int
+  manager_id      Int
+  start_date      DateTime
+  end_date        DateTime
+  invest_type     INVEST_TYPE
+  invest_amount   Int
+  target          Int
+  target_to_date  Int
+  sales           Int
+  deal_name       String
+  deal_status     DEAL_STATUS
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime      @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  doctor          doctors       @relation(fields: [doctor_id], references: [id], onUpdate: NoAction)
+  healthcentre    healthcentres @relation(fields: [healthcentre_id], references: [id], onUpdate: NoAction)
+  managers        managers      @relation(fields: [manager_id], references: [id], onUpdate: NoAction)
+}
+
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
+
+model specializatons {
+  id         Int       @id @default(autoincrement())
+  cmp_sp_id  String    @unique @db.VarChar(30)
+  name       String    @db.VarChar(50)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  doctors    doctors[]
+}
+
+model targets {
+  id               Int            @id @default(autoincrement())
+  month            DateTime       @db.Date
+  quantity_target  Int
+  sale_target      Decimal        @db.Decimal(10, 0)
+  product_id       Int
+  team_id          Int
+  area_id          Int?
+  region_id        Int?
+  territory_id     Int?
+  zone_id          Int?
+  product_group_id Int
+  company_id       Int
+  created_at       DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime       @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?      @db.Timestamptz(6)
+  companies        companies      @relation(fields: [company_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product_groups   product_groups @relation(fields: [product_group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products         products       @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  regions          regions?       @relation(fields: [region_id], references: [id], onUpdate: NoAction)
+  teams            teams          @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  territories      territories?   @relation(fields: [territory_id], references: [id], onUpdate: NoAction)
+  zones            zones?         @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+}
+
+model territories {
+  id                 Int                      @id @default(autoincrement())
+  sub_id             Int?
+  cmp_territory_id   String                   @db.VarChar(30)
+  name               String                   @db.VarChar(50)
+  geometry           Unsupported("geometry")?
+  region_id          Int?
+  zone_id            Int?
+  area_id            Int?
+  distributor_id     Int
+  color_id           Int?
+  created_at         DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at         DateTime?                @db.Timestamptz(6)
+  areas              areas?                   @relation(fields: [area_id], references: [id], onUpdate: NoAction)
+  colors             colors?                  @relation(fields: [color_id], references: [id], onUpdate: NoAction)
+  regions            regions?                 @relation(fields: [region_id], references: [id], onUpdate: NoAction)
+  zones              zones?                   @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
+  distributor        distributors             @relation(fields: [distributor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer_details   customer_details[]
+  healthcentres      healthcentres[]
+  targets            targets[]
+  territory_managers territory_managers[]
+  territory_teams    territory_teams[]
+  ffo2018            ffo2018[]
+}
+
+model territory_managers {
+  id           Int         @id @default(autoincrement())
+  territory_id Int
+  manager_id   Int
+  start        DateTime?
+  end          DateTime?
+  created_at   DateTime    @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime?   @db.Timestamptz(6)
+  updated_at   DateTime    @default(now()) @db.Timestamptz(6)
+  managers     managers    @relation(fields: [manager_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  territories  territories @relation(fields: [territory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model territory_teams {
+  id           Int         @id @default(autoincrement())
+  territory_id Int
+  team_id      Int
+  created_at   DateTime    @default(now()) @db.Timestamptz(6)
+  deleted_at   DateTime?   @db.Timestamptz(6)
+  updated_at   DateTime    @default(now()) @db.Timestamptz(6)
+  territories  territories @relation(fields: [territory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  teams        teams       @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model teams {
+  id               Int                @id @default(autoincrement())
+  cmp_team_id      String             @unique @db.VarChar(30)
+  name             String             @db.VarChar(50)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?          @db.Timestamptz(6)
+  companies        companies?         @relation(fields: [companyId], references: [id])
+  companyId        Int?
+  area_teams       area_teams[]
+  managers_details managers_details[]
+  region_teams     region_teams[]
+  targets          targets[]
+  territory_teams  territory_teams[]
+  teams_details    teams_details[]
+  zone_teams       zone_teams[]
+  product_details  product_details[]
+}
+
+model teams_details {
+  id             Int          @id @default(autoincrement())
+  team_id        Int
+  distributor_id Int
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  deleted_at     DateTime?    @db.Timestamptz(6)
+  team           teams        @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  distributor    distributors @relation(fields: [distributor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model user_types {
+  id         Int       @id @default(autoincrement())
+  type       String    @unique @db.VarChar(50)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  users      users[]
+}
+
+model users {
+  id              Int               @id @default(autoincrement())
+  firstname       String            @db.VarChar(50)
+  lastname        Int
+  user_type_id    Int
+  email           String            @unique @db.VarChar(250)
+  password        Int?
+  phone           Int
+  nic             Int?
+  age             Int?
+  image           String?
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime          @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?         @db.Timestamptz(6)
+  customers       customers[]
+  invoice_details invoice_details[]
+  orders          orders[]
+  user_types      user_types        @relation(fields: [user_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model zones {
+  id               Int                      @id @default(autoincrement())
+  sub_id           Int?
+  cmp_zone_id      String                   @db.VarChar(30)
+  name             String                   @db.VarChar(50)
+  distributor_id   Int
+  geometry         Unsupported("geometry")?
+  region_id        Int?
+  color_id         Int?
+  created_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?                @db.Timestamptz(6)
+  colors           colors?                  @relation(fields: [color_id], references: [id], onUpdate: NoAction)
+  regions          regions?                 @relation(fields: [region_id], references: [id], onUpdate: NoAction)
+  distributor      distributors             @relation(fields: [distributor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  areas            areas[]
+  customer_details customer_details[]
+  healthcentres    healthcentres[]
+  targets          targets[]
+  territories      territories[]
+  zone_managers    zone_managers[]
+  zone_teams       zone_teams[]
+}
+
+model zone_managers {
+  id         Int       @id @default(autoincrement())
+  zone_id    Int
+  manager_id Int
+  start      DateTime?
+  end        DateTime?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  managers   managers  @relation(fields: [manager_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  zones      zones     @relation(fields: [zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model zone_teams {
+  id         Int       @id @default(autoincrement())
+  zone_id    Int
+  team_id    Int
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  deleted_at DateTime? @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  zones      zones?    @relation(fields: [zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  teams      teams     @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model plans {
+  id           Int            @id @default(autoincrement())
+  from_date    DateTime       @map("from") @db.Timestamptz(3)
+  to           DateTime       @db.Timestamptz(3)
+  created_at   DateTime       @default(now()) @db.Timestamptz(3)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(3)
+  managerId    Int
+  plan_details plan_details[]
+  manager      managers       @relation(fields: [managerId], references: [id])
+}
+
+model plan_details {
+  id         Int         @id @default(autoincrement())
+  planId     Int
+  doctorId   Int?
+  status     PLAN_STATUS @default(Pending)
+  created_at DateTime    @default(now()) @db.Timestamptz(3)
+  updated_at DateTime    @default(now()) @db.Timestamptz(3)
+  doctor     doctors?    @relation(fields: [doctorId], references: [id])
+  plan       plans       @relation(fields: [planId], references: [id])
+}
+
+model ffo2018 {
+  id           Int         @id @default(autoincrement())
+  territory_id Int
+  territory    territories @relation(fields: [territory_id], references: [id])
+  sale2018     Decimal
+  unit2018     Decimal
+  created_at   DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime?   @updatedAt
+  deleted_at   DateTime?   @db.Timestamptz(6)
+}
+
+enum CUSTOMER_STATUS {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+enum PLAN_STATUS {
+  Pending
+  Visited
+}
+
+enum DR_PLAN_STATUS {
+  PENDING
+  VISITED
+  NOTVISITED
+}
+
+enum APPROVAL {
+  TRUE
+  FALSE
+}
+
+enum USER_TYPE {
+  MANAGER
+  ADMIN
+}
+
+enum INVEST_TYPE {
+  CASH
+  TRAVEL
+  GIFTS
+  OTHERS
+}
+
+enum MANAGER_TYPE {
+  REGION
+  ZONE
+  TERRITORY
+  BRICK
+}
+
+enum DEAL_STATUS {
+  ACTIVE
+  INACTIVE
+}
+
+model doctor_plan {
+  id                 Int             @id @default(autoincrement())
+  doctorId           Int
+  healthCentreId     Int
+  managerId          Int
+  doctor             doctors         @relation(fields: [doctorId], references: [id])
+  health_centre      healthcentres   @relation(fields: [healthCentreId], references: [id])
+  manager            managers        @relation(fields: [managerId], references: [id])
+  date               DateTime        @db.Timestamp(3)
+  eventType          String
+  description        String?
+  shift              String?
+  latitude           Decimal?
+  longitude          Decimal?
+  inHealthCentre     Boolean?
+  distance_in_meters Decimal?
+  visited_date       DateTime?       @db.Timestamp(3)
+  status             DR_PLAN_STATUS? @default(PENDING)
+  approval           APPROVAL?       @default(FALSE)
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?       @updatedAt
+  deleted_at         DateTime?       @db.Timestamptz(6)
+}
+
+model messages {
+  id         Int       @id @default(autoincrement())
+  prompt     String?
+  sql_query  String?
+  report     String?
+  chat_id    Int
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime? @updatedAt
+  deleted_at DateTime? @db.Timestamptz(6)
+  chat       chat      @relation(fields: [chat_id], references: [id])
+}
+
+model chat {
+  id         Int        @id @default(autoincrement())
+  title      String
+  manager_id Int
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at DateTime?  @updatedAt
+  deleted_at DateTime?  @db.Timestamptz(6)
+  manager    managers   @relation(fields: [manager_id], references: [id])
+  messages   messages[]
+}
+
+// PLD Data
+
+model ims_territory {
+  id        String                  @id @default(uuid())
+  name      String                  @unique
+  geometry  Unsupported("geometry")
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  bricks    ims_brick[]
+
+  @@index([name])
+}
+
+model ims_brick {
+  id               String                  @id @default(uuid())
+  name             String                  @unique
+  geometry         Unsupported("geometry")
+  territoryId      String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @default(now()) @updatedAt
+  territory        ims_territory?          @relation(fields: [territoryId], references: [id])
+  customerSale     ims_customer_sale[]
+  sale             ims_sale[]
+  customer_details customer_details[]
+  healthcentres    healthcentres[]
+
+  @@index([name])
+}
+
+model ims_brand {
+  id           String              @id @default(uuid())
+  name         String
+  price        Int
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  customerSale ims_customer_sale[]
+  sale         ims_sale[]
+}
+
+model ims_customer {
+  id               String              @id @default(uuid())
+  name             String
+  brickId          String
+  latitude         Decimal?            @db.Decimal
+  longitude        Decimal?            @db.Decimal
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  imsCustomerSales ims_customer_sale[]
+}
+
+model ims_sale {
+  id           String    @id @default(uuid())
+  invoice_date DateTime? @db.Date
+  price        Int?
+  unit         Int?
+  brandId      String
+  brickId      String
+  product_id   Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+  brand        ims_brand @relation(fields: [brandId], references: [id])
+  brick        ims_brick @relation(fields: [brickId], references: [id])
+  products     products? @relation(fields: [product_id], references: [id])
+}
+
+model ims_customer_sale {
+  id           String       @id @default(uuid())
+  invoice_date DateTime?    @db.Date
+  price        Int?
+  unit         Int?
+  brandId      String
+  brickId      String
+  customerId   String
+  product_id   Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @default(now()) @updatedAt
+  brand        ims_brand    @relation(fields: [brandId], references: [id])
+  brick        ims_brick    @relation(fields: [brickId], references: [id])
+  ims_customer ims_customer @relation(fields: [customerId], references: [id])
+  products     products?    @relation(fields: [product_id], references: [id])
+}

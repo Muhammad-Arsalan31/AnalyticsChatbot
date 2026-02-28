@@ -1,0 +1,3 @@
+{
+    "compare any 5 bricks by internal sales vs market sales": "SELECT \n  \"b\".\"name\" AS \"Brick Name\", \n  SUM(CAST(\"id\".\"product_quantity\" AS numeric)) AS \"Internal Units\", \n  SUM(\"ims\".\"unit\") AS \"IMS Market Units\"\nFROM \"ims_brick\" AS \"b\"\nJOIN \"ims_sale\" AS \"ims\" ON \"b\".\"id\" = \"ims\".\"brickId\"\nLEFT JOIN \"customer_details\" AS \"cd\" ON \"b\".\"id\" = \"cd\".\"ims_brick_id\"\nLEFT JOIN \"invoice\" AS \"inv\" ON \"cd\".\"customer_id\" = \"inv\".\"cust_id\"\nLEFT JOIN \"invoice_details\" AS \"id\" ON \"inv\".\"id\" = \"id\".\"invoice_id\"\nGROUP BY \"b\".\"name\"\nLIMIT 5;"
+}
