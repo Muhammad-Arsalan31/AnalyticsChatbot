@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 import re
+import random
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
@@ -10,9 +11,9 @@ import openai
 from typing import List, Dict, Any
 
 # --- CONFIGURATION ---
-load_dotenv()
+load_dotenv(override=True)
 DB_URL = os.getenv("DATABASE_URL")
-LLM_API_KEY = os.getenv("LLM_API_KEY")
+LLM_API_KEY = os.getenv("LLM_API_KEY").strip() if os.getenv("LLM_API_KEY") else None
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
 RAW_MODEL = os.getenv("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct")
 LLM_MODEL = "meta-llama/llama-3.3-70b-instruct" if "Llama 3.3 70B Instruct" in RAW_MODEL else RAW_MODEL
@@ -36,6 +37,49 @@ def save_to_query_cache(question, sql):
     with open(CACHE_FILE, "w") as f:
         json.dump(cache, f, indent=4)
 
+CHATS_DIR = "chats"
+if not os.path.exists(CHATS_DIR):
+    os.makedirs(CHATS_DIR)
+
+def save_session(session_id, messages):
+    if not messages: return
+    # Find or generate a title based on the first user message
+    title = session_id
+    if len(messages) >= 1:
+        first_q = messages[0]["content"]
+        # If it's a new session, we might want to get a cleaner title from LLM
+        if session_id.startswith("New_Session_"):
+            try:
+                res = client.chat.completions.create(
+                    model=LLM_MODEL,
+                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words): {first_q}"}],
+                    timeout=5.0
+                )
+                title = res.choices[0].message.content.strip().replace(" ", "_").replace('"', '').replace("'", "")
+            except:
+                title = first_q[:20].replace(" ", "_")
+    
+    file_path = os.path.join(CHATS_DIR, f"{title}.json")
+    # Save with dataframes converted to dict for JSON
+    serializable_msgs = []
+    for m in messages:
+        m_copy = m.copy()
+        if "data" in m_copy and isinstance(m_copy["data"], pd.DataFrame):
+            m_copy["data"] = m_copy["data"].to_dict(orient="records")
+        serializable_msgs.append(m_copy)
+        
+    with open(file_path, "w") as f:
+        json.dump(serializable_msgs, f, indent=4)
+    return title
+
+def load_session(filename):
+    with open(os.path.join(CHATS_DIR, filename), "r") as f:
+        msgs = json.load(f)
+        for m in msgs:
+            if "data" in m and m["data"] is not None:
+                m["data"] = pd.DataFrame(m["data"])
+        return msgs
+
 # --- DATABASE ENGINE ---
 def run_sql_query(query: str):
     forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE"]
@@ -55,6 +99,7 @@ def run_sql_query(query: str):
     except Exception as e:
         return {"error": str(e)}
 
+@st.cache_data(ttl=3600)
 def get_schema():
     try:
         with open("prisma/schema.prisma", "r") as f:
@@ -62,6 +107,7 @@ def get_schema():
     except:
         return "Schema unavailable."
 
+@st.cache_data(ttl=600)
 def get_rag_context(user_query: str):
     """Retrieves relevant business logic and SQL examples."""
     context = ""
@@ -84,8 +130,53 @@ def get_rag_context(user_query: str):
     context += "- TABLE 'ims_sale' / 'ims_customer_sale': Use \"unit\" for quantity and \"price\" for value.\n"
     return context
 
+@st.cache_data(ttl=1800)
+def get_executive_kpis():
+    """Fetches high-level business metrics for the homepage."""
+    kpis = {
+        "internal_sales": 0,
+        "market_sales": 0,
+        "top_brick": "N/A",
+        "doc_count": 0
+    }
+    
+    # 1. Total Internal Units (from Invoices)
+    res = run_sql_query('SELECT SUM(CAST("product_quantity" AS NUMERIC)) as total FROM "invoice_details"')
+    if res and not isinstance(res, dict): kpis["internal_sales"] = res[0]["total"] or 0
+    
+    # 2. Total Market Units (from IMS)
+    res = run_sql_query('SELECT SUM("unit") as total FROM "ims_sale"')
+    if res and not isinstance(res, dict): kpis["market_sales"] = res[0]["total"] or 0
+    
+    # 3. Top Performing Brick
+    res = run_sql_query('''
+        SELECT "b"."name", SUM(CAST("id"."product_quantity" AS NUMERIC)) as total 
+        FROM "ims_brick" "b"
+        JOIN "customer_details" "cd" ON "b"."id" = "cd"."ims_brick_id"
+        JOIN "invoice" "inv" ON "cd"."customer_id" = "inv"."cust_id"
+        JOIN "invoice_details" "id" ON "inv"."id" = "id"."invoice_id"
+        GROUP BY "b"."name" ORDER BY total DESC LIMIT 1
+    ''')
+    if res and not isinstance(res, dict): kpis["top_brick"] = res[0]["name"]
+    
+    # 4. Total Active Doctors
+    res = run_sql_query('SELECT COUNT(*) as total FROM "doctors"')
+    if res and not isinstance(res, dict): kpis["doc_count"] = res[0]["total"] or 0
+    
+    return kpis
+
+# --- SESSION INITIALIZATION ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "current_session" not in st.session_state:
+    st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
+if "prompt_trigger" not in st.session_state:
+    st.session_state.prompt_trigger = None
+
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Antigravity Pharma AI", page_icon="💊", layout="wide")
+
+# ... CSS remains same ...
 
 st.markdown("""
 <style>
@@ -98,8 +189,65 @@ st.markdown("""
 st.title("💊 Antigravity Pharma Intelligence")
 st.caption("AI Agent with RAG (Retrieval-Augmented Generation)")
 
+# --- EXECUTIVE KPI SNAPSHOT ---
+with st.container():
+    kpis = get_executive_kpis()
+    c1, c2, c3, c4 = st.columns(4)
+    
+    with c1:
+        st.metric("📦 Internal Sales", f"{float(kpis['internal_sales'])/1e6:.1f}M Units")
+    with c2:
+        st.metric("🌍 IMS Market Size", f"{float(kpis['market_sales'])/1e6:.1f}M Units")
+    with c3:
+        st.metric("🏆 Top Brick", kpis['top_brick'])
+    with c4:
+        st.metric("👨‍⚕️ Active Doctors", kpis['doc_count'])
+
+st.divider()
+
+# --- ONBOARDING GUIDE ---
+with st.expander("🚀 **How to get the best reports?** (New User Guide)", expanded=not st.session_state.messages):
+    st.markdown("""
+    Welcome to **Antigravity Pharma Intelligence**! Here's how to use this AI Agent:
+    
+    1. **📊 Ask about Data**: You can ask for Internal Sales (from Invoices), Market Sales (from IMS), or Doctor segments.
+    2. **⚖️ Comparisons**: Use words like *'Compare'*, *'Vs'*, or *'Top 5'* for the best charts.
+    3. **⚡ Speed**: Repeat questions are served instantly from **Cache**.
+    4. **📂 Sessions**: Your chats are auto-saved in the sidebar with AI-generated titles.
+    
+    **Pro Tip:** For internal sales, ask about *"Invoice quantity"* or *"Invoiced units"*.
+    """)
+
 # --- SIDEBAR ---
 with st.sidebar:
+    st.header("📂 Chat Sessions")
+    chat_files = [f for f in os.listdir(CHATS_DIR) if f.endswith(".json")]
+    
+    if st.button("➕ New Chat"):
+        st.session_state.messages = []
+        st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
+        st.rerun()
+
+    if chat_files:
+        selected_chat = st.selectbox("Past Conversations", ["Select..."] + chat_files)
+        if selected_chat != "Select...":
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📂 Load"):
+                    st.session_state.messages = load_session(selected_chat)
+                    st.session_state.current_session = selected_chat.replace(".json", "")
+                    st.rerun()
+            with col2:
+                if st.button("🗑️ Delete"):
+                    file_to_del = os.path.join(CHATS_DIR, selected_chat)
+                    if os.path.exists(file_to_del):
+                        os.remove(file_to_del)
+                        st.session_state.messages = []
+                        st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
+                        st.toast(f"Deleted {selected_chat}")
+                        st.rerun()
+    
+    st.divider()
     st.header("📊 Data Health Check")
     st.success("IMS Market Sales: 156k+ records")
     st.success("Internal Sales (Invoices): 55k+ records")
@@ -113,11 +261,38 @@ with st.sidebar:
     st.markdown("### Agent Reason (RAG)")
     st.write("The agent uses `knowledge/` and REAL-TIME table stats for high accuracy.")
 
-# --- CHAT INTERFACE ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# --- HELPER: Handle question submission ---
+def submit_question(q):
+    st.session_state.prompt_trigger = q
 
-for message in st.session_state.messages:
+# --- STARTER QUESTIONS (Show only if no messages) ---
+if not st.session_state.messages:
+    st.write("### 💡 Start with a sample report:")
+    all_starters = [
+        "Compare top 5 bricks by internal units vs market units",
+        "Show me top 5 Category A doctors",
+        "Which 3 products have the highest invoice quantity?",
+        "Compare internal sales vs market sales in F.B.AREA",
+        "Which brick has the highest internal units sold?",
+        "List top 5 doctors by visit count in doctor_plan",
+        "Compare market units of 'Product A' vs 'Product B' across bricks",
+        "Show internal sales trend for F.B.AREA region",
+        "Which Team has the highest target vs achievement?",
+        "What is the market share of Karachi brick?"
+    ]
+    # Free shuffling - No Tokens used!
+    random.shuffle(all_starters)
+    starters = all_starters[:4]
+    
+    cols = st.columns(2)
+    for i, s in enumerate(starters):
+        with cols[i % 2]:
+            if st.button(s, key=f"start_{i}"):
+                submit_question(s)
+                st.rerun()
+
+# --- CHAT INTERFACE ---
+for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if "data" in message:
@@ -126,35 +301,53 @@ for message in st.session_state.messages:
             # Re-generate chart to avoid session state serialization issues
             x_col, y_cols = message["chart_data"]
             fig = px.bar(message["data"], x=x_col, y=y_cols, barmode='group', template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=f"chart_hist_{idx}")
+        
+        # Display FOLLOW-UP buttons if they exist in the message metadata
+        if "follow_ups" in message and message["follow_ups"] and idx == len(st.session_state.messages) - 1:
+            st.write("---")
+            st.write("🔍 **Suggested Follow-ups:**")
+            num_follow_ups = len(message["follow_ups"])
+            if num_follow_ups > 0:
+                f_cols = st.columns(num_follow_ups)
+                for f_idx, f_text in enumerate(message["follow_ups"]):
+                    with f_cols[f_idx]:
+                        if st.button(f_text, key=f"follow_{idx}_{f_idx}"):
+                            submit_question(f_text)
+                            st.rerun()
 
-if prompt := st.chat_input("Ask about your pharma data..."):
+# Use either chat_input or a click from starters/follow-ups
+user_input = st.chat_input("Ask about your pharma data...")
+prompt = user_input or st.session_state.prompt_trigger
+
+if prompt:
+    st.session_state.prompt_trigger = None # Reset
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    with st.spinner("Consulting Knowledge Base & Database..."):
+    with st.spinner("Retrieving Data..."):
         try:
-            schema = get_schema()
-            rag_context = get_rag_context(prompt)
-            
-            # --- CACHE CHECK ---
+            # --- 1. QUICKEST CACHE CHECK (No File Reads) ---
             cache = load_query_cache()
             normalized_q = prompt.lower().strip()
             
             sql_query = ""
             results = None
+            is_cached = False
             
             if normalized_q in cache:
                 sql_query = cache[normalized_q]
                 results = run_sql_query(sql_query)
-                # If cached query fails (schema changed?), reset and try LLM
-                if isinstance(results, dict) and "error" in results:
-                    results = None
-                    sql_query = ""
+                if not (isinstance(results, dict) and "error" in results):
+                    is_cached = True
 
-            # --- LLM GENERATION / SELF-CORRECTING LOOP (if not cached) ---
-            if results is None:
+            # --- 2. LLM GENERATION ONLY ON CACHE MISS ---
+            if not is_cached:
+                # Cache misses perform file reads
+                schema = get_schema()
+                rag_context = get_rag_context(prompt)
+                
                 max_retries = 3
                 current_attempt = 0
                 last_error = ""
@@ -166,25 +359,31 @@ if prompt := st.chat_input("Ask about your pharma data..."):
                         f"KNOWLEDGE BASE & BUSINESS LOGIC:\n{rag_context}\n\n"
                         f"DATABASE SCHEMA:\n{schema}\n\n"
                         f"IMPORTANT DATA STATS (REAL-TIME):\n"
-                        f"- 'invoice' and 'invoice_details' have 55,000+ rows. USE THESE FOR INTERNAL SALES.\n"
-                        f"- 'orders' and 'targets' tables are EMPTY (0 rows). DO NOT USE THEM.\n"
-                        f"- 'ims_sale' has 156,000+ rows. Use this for Market benchmarks.\n\n"
+                        f"- 'invoice_details' for INTERNAL SALES. 'ims_sale' for MARKET.\n"
+                        f"- 'orders' and 'targets' are EMPTY. DO NOT USE.\n\n"
                         f"USER QUESTION: {prompt}"
                         f"{error_feedback}\n\n"
-                        "RULES:\n"
-                        "- ALWAYS use \"invoice_details\" for internal sales quantity (column \"product_quantity\").\n"
-                        "- If the user asks for targets, explain that the table is empty and suggest analyzing past invoices instead.\n"
-                        "- IMPORTANT: FIX the last error if provided.\n"
-                        "- Return ONLY valid PostgreSQL SELECT query inside triple backticks.\n"
-                        "- Use double quotes for ALL table and column names.\n"
-                        "- Use LIMIT 10."
+                        "RULES: Return ONLY valid PostgreSQL SELECT query inside triple backticks. Use double quotes for identifiers. Use LIMIT 10."
                     )
                     
-                    response = client.chat.completions.create(
-                        model=LLM_MODEL,
-                        messages=[{"role": "system", "content": "You are a professional database agent."}, {"role": "user", "content": gen_prompt}],
-                        timeout=30.0
-                    )
+                    # ATTEMPT GENERATION
+                    try:
+                        response = client.chat.completions.create(
+                            model=LLM_MODEL,
+                            messages=[{"role": "system", "content": "You are a professional database agent."}, {"role": "user", "content": gen_prompt}],
+                            timeout=30.0
+                        )
+                    except Exception as api_err:
+                        # AUTO FALLBACK if primary is rate-limited (429) or fails
+                        if "429" in str(api_err) or "rate-limit" in str(api_err).lower():
+                            st.toast("⚠️ Primary Model busy, trying fallback (Auto Free Router)...", icon="🔀")
+                            response = client.chat.completions.create(
+                                model="openrouter/free",
+                                messages=[{"role": "system", "content": "You are a professional database agent."}, {"role": "user", "content": gen_prompt}],
+                                timeout=20.0
+                            )
+                        else:
+                            raise api_err
                     
                     content = response.choices[0].message.content
                     sql_match = re.search(r"```sql\n(.*?)\n```", content, re.DOTALL)
@@ -196,7 +395,6 @@ if prompt := st.chat_input("Ask about your pharma data..."):
                         last_error = results["error"]
                         continue
                     else:
-                        # Save successful query to cache
                         save_to_query_cache(prompt, sql_query)
                         break
 
@@ -204,26 +402,31 @@ if prompt := st.chat_input("Ask about your pharma data..."):
             if isinstance(results, dict) and "error" in results:
                 st.error(f"Failed after {max_retries} attempts. Final Error: {results['error']}")
             else:
+                if is_cached:
+                    st.toast("⚡ Result served from Cache (SQL generation skipped)", icon="🔥")
+                
                 df = pd.DataFrame(results)
                 
                 if df.empty:
                     final_answer = "I executed the query, but it returned no data. This usually means the specific filters (like region name) didn't match anything in the database."
                 else:
-                    sum_prompt = (
-                        f"User asked: {prompt}\nDB Result: {results}\n\n"
-                        "Task: Provide a concise (1-2 sentence) business summary of the results.\n"
-                        "STRICT RULES:\n"
-                        "- DO NOT lecture the user on data integrity.\n"
-                        "- DO NOT suggest alternative data sources.\n"
-                        "- DO NOT explain query accuracy.\n"
-                        "- Just summarize the numeric findings simply."
-                    )
-                    summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": sum_prompt}], timeout=30.0)
-                    final_answer = summary_res.choices[0].message.content
+                    # IF CACHED: Skip AI summary for 1-second performance
+                    if is_cached:
+                        final_answer = f"⚡ **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance."
+                    else:
+                        sum_prompt = (
+                            f"User asked: {prompt}\nDB Result: {results}\n\n"
+                            "Task: Provide a concise (1-2 sentence) business summary of the results.\n"
+                            "STRICT RULES:\n"
+                            "- Just summarize the numeric findings simply. BE VERY BRIEF."
+                        )
+                        summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": sum_prompt}], timeout=30.0)
+                        final_answer = summary_res.choices[0].message.content
                 
                 with st.chat_message("assistant"):
                     st.markdown(final_answer)
                     # st.code(sql_query, language="sql") # Optional: Show SQL for debugging
+                    chart_data = None
                     if not df.empty:
                         st.dataframe(df)
                         
@@ -251,12 +454,27 @@ if prompt := st.chat_input("Ask about your pharma data..."):
                                     template="plotly_dark",
                                     title=f"Comparison: {', '.join(numeric_cols)} per {x_col}"
                                 )
-                                st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, use_container_width=True, key=f"chart_new_{len(st.session_state.messages)}")
                                 
                                 # Store for history
                                 chart_data = (x_col, numeric_cols)
                 
-                st.session_state.messages.append({"role": "assistant", "content": final_answer, "data": df, "chart_data": chart_data})
+                # --- GENERATE FOLLOW-UPS ---
+                follow_ups = []
+                try:
+                    f_prompt = f"Based on this answer: '{final_answer}', suggest 2 very short (max 5 words) follow-up questions about the data."
+                    f_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": f_prompt}], timeout=15.0)
+                    raw_f = f_res.choices[0].message.content
+                    follow_ups = [q.strip('1234. -').strip() for q in raw_f.split('\n') if '?' in q][:2]
+                except:
+                    follow_ups = []
+
+                st.session_state.messages.append({"role": "assistant", "content": final_answer, "data": df, "chart_data": chart_data, "follow_ups": follow_ups})
+                # Auto-save
+                new_id = save_session(st.session_state.current_session, st.session_state.messages)
+                if st.session_state.current_session.startswith("New_Session_"):
+                    st.session_state.current_session = new_id
+                st.rerun()
         except Exception as e:
             st.error(f"❌ An error occurred: {str(e)}")
         except Exception as e:
