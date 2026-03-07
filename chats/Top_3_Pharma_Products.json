@@ -1,0 +1,160 @@
+[
+    {
+        "role": "user",
+        "content": "Which 3 products have the highest invoice quantity? by revenue"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "data": [
+            {
+                "Product Name": NaN,
+                "Total Quantity": 4917207.0,
+                "Total Revenue": 764515335096.0
+            },
+            {
+                "Product Name": NaN,
+                "Total Quantity": 3070501.0,
+                "Total Revenue": 530087675896.5
+            },
+            {
+                "Product Name": NaN,
+                "Total Quantity": 2950133.0,
+                "Total Revenue": 459690258916.0
+            },
+            {
+                "Product Name": NaN,
+                "Total Quantity": 1247573.0,
+                "Total Revenue": 209658808566.0
+            },
+            {
+                "Product Name": NaN,
+                "Total Quantity": 673759.0,
+                "Total Revenue": 103114895616.0
+            },
+            {
+                "Product Name": NaN,
+                "Total Quantity": 0.0,
+                "Total Revenue": 0.0
+            }
+        ],
+        "chart_data": [
+            "Product Name",
+            [
+                "Product Name",
+                "Total Quantity",
+                "Total Revenue"
+            ]
+        ],
+        "follow_ups": [
+            "Is data up to date?",
+            "What is the source?"
+        ]
+    },
+    {
+        "role": "user",
+        "content": "Which 3 products have the highest invoice quantity? by revenue"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "data": [
+            {
+                "Product Name": "Product 1",
+                "Total Quantity": 4917207.0,
+                "Total Revenue": 764515335096.0
+            },
+            {
+                "Product Name": "Product 3",
+                "Total Quantity": 3070501.0,
+                "Total Revenue": 530087675896.5
+            },
+            {
+                "Product Name": "Product 2",
+                "Total Quantity": 2950133.0,
+                "Total Revenue": 459690258916.0
+            },
+            {
+                "Product Name": "Product 4",
+                "Total Quantity": 1247573.0,
+                "Total Revenue": 209658808566.0
+            },
+            {
+                "Product Name": "Product 5",
+                "Total Quantity": 673759.0,
+                "Total Revenue": 103114895616.0
+            },
+            {
+                "Product Name": "No Sale",
+                "Total Quantity": 0.0,
+                "Total Revenue": 0.0
+            }
+        ],
+        "chart_data": [
+            "Product Name",
+            [
+                "Total Quantity",
+                "Total Revenue"
+            ]
+        ],
+        "follow_ups": [
+            "Is data up to date?",
+            "What is the source?"
+        ]
+    },
+    {
+        "role": "user",
+        "content": "Compare Total Quantity and Total Revenue for all products."
+    },
+    {
+        "role": "user",
+        "content": "Compare Total Quantity and Total Revenue for all products."
+    },
+    {
+        "role": "assistant",
+        "content": "Product 1 has the highest total quantity and revenue, with 4,917,207 units sold and $764,515,335,096 in revenue. The top 4 products by revenue are products 1, 3, 2, and 4, respectively.",
+        "data": [
+            {
+                "product_id": "1",
+                "Total Quantity": 4917207.0,
+                "Total Revenue": 764515335096.0
+            },
+            {
+                "product_id": "3",
+                "Total Quantity": 3070501.0,
+                "Total Revenue": 530087675896.5
+            },
+            {
+                "product_id": "2",
+                "Total Quantity": 2950133.0,
+                "Total Revenue": 459690258916.0
+            },
+            {
+                "product_id": "4",
+                "Total Quantity": 1247573.0,
+                "Total Revenue": 209658808566.0
+            },
+            {
+                "product_id": "5",
+                "Total Quantity": 673759.0,
+                "Total Revenue": 103114895616.0
+            },
+            {
+                "product_id": "0",
+                "Total Quantity": 0.0,
+                "Total Revenue": 0.0
+            }
+        ],
+        "chart_data": [
+            "product_id",
+            [
+                "Total Quantity",
+                "Total Revenue"
+            ]
+        ],
+        "follow_ups": [
+            "What is Product 1?",
+            "Why low Product 4 sales?"
+        ]
+    }
+]

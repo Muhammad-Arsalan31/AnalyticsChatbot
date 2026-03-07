@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import os
 import re
 import random
@@ -19,9 +21,98 @@ LLM_MODEL = os.getenv("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct")
 
 client = openai.OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
 
+import decimal
 import json
 
+# Custom JSON encoder to handle PostgreSQL Decimal types
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, decimal.Decimal):
+            return float(obj)
+        return super().default(obj)
+
 CACHE_FILE = "query_cache.json"
+
+def smart_format_dataframe(df: pd.DataFrame):
+    """
+    Returns:
+        df_numeric  -> pure numeric (for charts / calculations)
+        df_display  -> formatted with commas strings (for st.dataframe UI)
+    """
+    df_numeric = df.copy()
+    df_display = df.copy() # Start with original data to avoid data loss
+
+    # 🔹 Identify and convert numeric columns safely
+    num_cols = []
+    for col in df_numeric.columns:
+        # SKIP the first column - it's our X-axis category (e.g., Brick Name, Product)
+        if col == df_numeric.columns[0]:
+            continue
+            
+        # Try to convert to numeric, if it fails, it's a category
+        tmp = pd.to_numeric(df_numeric[col], errors='coerce')
+        if tmp.notnull().any():
+            df_numeric[col] = tmp.fillna(0).astype(float)
+            num_cols.append(col)
+
+    # 🔹 Apply formatting to display dataframe for numeric columns only
+    for col in num_cols:
+        # Detect integer-like vs float
+        if (df_numeric[col].dropna() % 1 == 0).all():
+            df_display[col] = df_numeric[col].apply(
+                lambda x: f"{int(x):,}" if pd.notnull(x) else ""
+            )
+        else:
+            df_display[col] = df_numeric[col].apply(
+                lambda x: f"{x:,.2f}" if pd.notnull(x) else ""
+            )
+
+    # Force the first column (Category) to be string to ensure Plotly treats it correctly
+    df_numeric[df_numeric.columns[0]] = df_numeric[df_numeric.columns[0]].astype(str)
+
+    return df_numeric, df_display
+
+def plot_smart_chart(df: pd.DataFrame, x_col: str, y_cols: list, title: str, key: str):
+    """
+    Plots a chart with support for dual Y-axes if columns have vastly different scales
+    (e.g., Quantity in millions vs Revenue in trillions).
+    """
+    if len(y_cols) == 2:
+        v1 = df[y_cols[0]].abs().max()
+        v2 = df[y_cols[1]].abs().max()
+        
+        # Check for Scale mismatch (10x or more) or Pharma specific keywords
+        is_qty_val = any(k in y_cols[0].lower() for k in ["qty", "unit"]) and \
+                     any(k in y_cols[1].lower() for k in ["rev", "val", "price", "sale"])
+        is_val_qty = any(k in y_cols[1].lower() for k in ["qty", "unit"]) and \
+                     any(k in y_cols[0].lower() for k in ["rev", "val", "price", "sale"])
+        
+        if is_qty_val or is_val_qty or (v1 > 0 and v2 > 0 and (v1/v2 > 10 or v2/v1 > 10)):
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Smaller scale usually goes on Primary Y as Bars, Larger scale on Secondary Y as Line
+            if v1 < v2:
+                p_col, s_col = y_cols[0], y_cols[1]
+            else:
+                p_col, s_col = y_cols[1], y_cols[0]
+                
+            fig.add_trace(go.Bar(x=df[x_col], y=df[p_col], name=p_col, marker_color='#636EFA'), secondary_y=False)
+            fig.add_trace(go.Scatter(x=df[x_col], y=df[s_col], name=s_col, marker_color='#EF553B', mode='lines+markers'), secondary_y=True)
+            
+            fig.update_layout(
+                title=title, template="plotly_dark", hovermode="x unified",
+                xaxis={'type':'category', 'categoryorder':'total descending'},
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            fig.update_yaxes(title_text=p_col, secondary_y=False)
+            fig.update_yaxes(title_text=s_col, secondary_y=True)
+            st.plotly_chart(fig, use_container_width=True, key=key)
+            return
+
+    # Standard Grouped Bar
+    fig = px.bar(df, x=x_col, y=y_cols, barmode='group', template="plotly_dark", title=title)
+    fig.update_layout(xaxis={'type':'category', 'categoryorder':'total descending'})
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
 def load_query_cache():
     if os.path.exists(CACHE_FILE):
@@ -68,7 +159,7 @@ def save_session(session_id, messages):
         serializable_msgs.append(m_copy)
         
     with open(file_path, "w") as f:
-        json.dump(serializable_msgs, f, indent=4)
+        json.dump(serializable_msgs, f, indent=4, cls=DecimalEncoder)
     return title
 
 def load_session(filename):
@@ -124,10 +215,14 @@ def get_rag_context(user_query: str):
     context += "- !! RULE !!: Use 'invoice_details' for ALL Internal Sales/Quantity queries.\n"
     context += "- RULE: Join 'invoice' -> 'invoice_details' to get 'product_quantity'.\n"
     context += "- RULE: Join 'customer_details' -> 'invoice' using cd.customer_id = inv.cust_id.\n"
-    context += "- RULE: Always CAST \"invoice_details\".\"product_quantity\" AS NUMERIC for SUM operations.\n"
-    context += "- TABLE 'doctors': Use 'category' for doctor segments (A, B, C, D).\n"
-    context += "- TABLE 'doctor_calls': DOES NOT EXIST. Use 'doctor_plan' for all visit-related queries.\n"
-    context += "- TABLE 'ims_sale': Use this for Market units. Column: 'unit'.\n"
+    context += "- TABLE 'ims_sale': Use this for Market units. Join with 'ims_brick' on 'brickId' to get brick 'name'.\n"
+    context += "- TABLE 'customer_details': DOES NOT have a 'brick_name' column. To get brick names for internal sales:\n"
+    context += "  JOIN 'customer_details' cd ON ...\n"
+    context += "  JOIN 'ims_brick' ib ON cd.ims_brick_id = ib.id\n"
+    context += "  SELECT ib.name AS brick_name\n"
+    context += "- CRITICAL SQL RULE: Never return constants (like 0) as 'brick_name'. Always use the JOIN above to get the real 'name' from 'ims_brick'.\n"
+    context += "- CRITICAL SQL RULE: Exclude rows where 'brick_name' is NULL (use WHERE ib.name IS NOT NULL).\n"
+    context += "- CRITICAL SQL RULE: Always GROUP BY the actual column name selected (e.g., ib.name). DO NOT use column indexes.\n"
     return context
 
 @st.cache_data(ttl=1800)
@@ -174,7 +269,7 @@ if "prompt_trigger" not in st.session_state:
     st.session_state.prompt_trigger = None
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Antigravity Pharma AI", page_icon="💊", layout="wide")
+st.set_page_config(page_title="Pharma Intelligence", page_icon="💊", layout="wide")
 
 # ... CSS remains same ...
 
@@ -266,24 +361,24 @@ for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if "data" in message:
-            df_hist = pd.DataFrame(message["data"])
-            # USE COERCE to handle 'None' values seen in screenshot
-            # This ensures the column type becomes numeric (with NaNs) even with empty rows
-            for c in df_hist.columns:
-                if "id" not in c.lower() or c.lower().endswith("_id"):
-                    df_hist[c] = pd.to_numeric(df_hist[c], errors='coerce')
+            df_raw = pd.DataFrame(message["data"])
+            df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
+            # Table use formatted
+            st.dataframe(df_display_hist, use_container_width=True)
             
-            hist_num_cols = df_hist.select_dtypes(include=['number']).columns.tolist()
-            st.dataframe(
-                df_hist, 
-                column_config={col: st.column_config.NumberColumn(format="%,d") for col in hist_num_cols},
-                use_container_width=True
-            )
-        if message.get("chart_data") is not None:
-            # Re-generate chart to avoid session state serialization issues
-            x_col, y_cols = message["chart_data"]
-            fig = px.bar(message["data"], x=x_col, y=y_cols, barmode='group', template="plotly_dark")
-            st.plotly_chart(fig, use_container_width=True, key=f"chart_hist_{idx}")
+            # --- Historical Charts ---
+            if message.get("chart_data") is not None:
+                x_col, y_cols = message["chart_data"]
+                # Filter to ensure Y columns exist and are numeric
+                y_cols_valid = [c for c in y_cols if c in df_numeric_hist.columns]
+                if y_cols_valid:
+                    plot_smart_chart(
+                        df_numeric_hist, 
+                        x_col, 
+                        y_cols_valid, 
+                        f"History: {', '.join(y_cols_valid)}", 
+                        f"chart_hist_{idx}"
+                    )
         
         # Display FOLLOW-UP buttons if they exist in the message metadata
         if "follow_ups" in message and message["follow_ups"] and idx == len(st.session_state.messages) - 1:
@@ -340,9 +435,12 @@ if prompt:
                     gen_prompt = (
                         f"KNOWLEDGE BASE & BUSINESS LOGIC:\n{rag_context}\n\n"
                         f"DATABASE SCHEMA:\n{schema}\n\n"
-                        f"IMPORTANT DATA STATS (REAL-TIME):\n"
-                        f"- 'invoice_details' for INTERNAL SALES. 'ims_sale' for MARKET.\n"
-                        f"- 'orders' and 'targets' are EMPTY. DO NOT USE.\n\n"
+                        f"STRICT SQL RULES (CRITICAL):\n"
+                        f"1. Never return constant values like 0 for 'brick_name'. Always SELECT the actual column.\n"
+                        f"2. Group data by the real column name (e.g., GROUP BY \"brick_name\"). Never use numeric indexes.\n"
+                        f"3. Exclude NULL or missing categories using WHERE/HAVING filters.\n"
+                        f"4. If a category column (like brick_name) doesn't exist in the relevant tables, RETURN AN ERROR message instead of fake data.\n"
+                        f"5. Each unique category must have its own separate row in the results.\n\n"
                         f"USER QUESTION: {prompt}"
                         f"{error_feedback}\n\n"
                         "RULES: Return ONLY valid PostgreSQL SELECT query inside triple backticks. Use double quotes for identifiers. Use LIMIT 10."
@@ -410,41 +508,43 @@ if prompt:
                     # st.code(sql_query, language="sql") # Optional: Show SQL for debugging
                     chart_data = None
                     if not df.empty:
-                        # Force conversion to ensure commas work (COERCE handles None/NaNs correctly)
-                        for col in df.columns:
-                            if "id" not in col.lower() or col.lower().endswith("_id"):
-                                df[col] = pd.to_numeric(df[col], errors='coerce')
-
-                        # Identify numeric columns for comma formatting
-                        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+                        # Use Smart Formatting
+                        df_numeric, df_display = smart_format_dataframe(df)
                         
-                        # Display with commas using Streamlit's Column Config
-                        st.dataframe(
-                            df, 
-                            column_config={col: st.column_config.NumberColumn(format="%,d") for col in numeric_cols},
-                            use_container_width=True
-                        )
+                        # Table use formatted
+                        st.dataframe(df_display, use_container_width=True)
                         
                         # --- Enhanced Multi-Column Auto-Charting ---
                         chart_data = None
-                        if len(df) > 1:
-                            # Use the first column as X
-                            x_col = df.columns[0]
+                        if len(df_numeric) > 1:
+                            # 1. First column is the category (X-axis)
+                            x_col = df_numeric.columns[0]
                             
-                            if len(numeric_cols) > 0:
-                                # Ensure we have multiple bars if there are multiple stats
-                                fig = px.bar(
-                                    df, 
-                                    x=x_col, 
-                                    y=numeric_cols, 
-                                    barmode='group',
-                                    template="plotly_dark",
-                                    title=f"Comparison: {', '.join(numeric_cols)} per {x_col}"
+                            # 2. Identify numeric stats (Y-axis)
+                            num_cols = df_numeric.select_dtypes(include=['number']).columns.tolist()
+                            y_cols = [c for c in num_cols if c != x_col]
+                            
+                            # 3. Validation: X-axis must have valid categories (Not '0', NULL, or empty)
+                            valid_rows = df_numeric.copy()
+                            valid_rows[x_col] = valid_rows[x_col].astype(str).str.strip()
+                            valid_rows = valid_rows[
+                                (valid_rows[x_col] != "0") & 
+                                (valid_rows[x_col] != "None") & 
+                                (valid_rows[x_col] != "")
+                            ]
+                            if not valid_rows.empty and len(y_cols) > 0:
+                                # --- Live Chart (Plotly with Smart Scaling) ---
+                                plot_smart_chart(
+                                    valid_rows, 
+                                    x_col, 
+                                    y_cols, 
+                                    f"Analysis: {', '.join(y_cols)} per {x_col}", 
+                                    f"chart_new_{len(st.session_state.messages)}"
                                 )
-                                st.plotly_chart(fig, use_container_width=True, key=f"chart_new_{len(st.session_state.messages)}")
-                                
-                                # Store for history (Original raw numeric cols list)
-                                chart_data = (x_col, numeric_cols)
+                                chart_data = (x_col, y_cols)
+                            else:
+                                if len(y_cols) > 0:
+                                    st.warning(f"⚠️ Cannot plot chart: Category column ('{x_col}') appears empty or invalid.")
                 
                 # --- GENERATE FOLLOW-UPS ---
                 follow_ups = []
@@ -456,13 +556,11 @@ if prompt:
                 except:
                     follow_ups = []
 
-                st.session_state.messages.append({"role": "assistant", "content": final_answer, "data": df, "chart_data": chart_data, "follow_ups": follow_ups})
+                st.session_state.messages.append({"role": "assistant", "content": final_answer, "data": df_numeric if not df.empty else df, "chart_data": chart_data, "follow_ups": follow_ups})
                 # Auto-save
                 new_id = save_session(st.session_state.current_session, st.session_state.messages)
                 if st.session_state.current_session.startswith("New_Session_"):
                     st.session_state.current_session = new_id
                 st.rerun()
-        except Exception as e:
-            st.error(f"❌ An error occurred: {str(e)}")
         except Exception as e:
             st.error(f"❌ An error occurred: {str(e)}")
