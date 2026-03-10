@@ -39,6 +39,9 @@ def smart_format_dataframe(df: pd.DataFrame):
         df_numeric  -> pure numeric (for charts / calculations)
         df_display  -> formatted with commas strings (for st.dataframe UI)
     """
+    if df.empty or len(df.columns) == 0:
+        return df, df
+        
     df_numeric = df.copy()
     df_display = df.copy() # Start with original data to avoid data loss
 
@@ -209,20 +212,20 @@ def get_rag_context(user_query: str):
                     content = f.read()
                     context += f"\n--- From {filename} ---\n{content}\n"
     
-    # Add explicit warning about table existence and column mapping based on schema analysis
-    context += "\n--- DATABASE SCHEMA MAPPINGS & LIMITATIONS (DO NOT IGNORE) ---\n"
-    context += "- !! IMPORTANT !!: Table 'orders' is EMPTY (0 rows). DO NOT USE 'orders' or 'order_details' for sales queries.\n"
-    context += "- !! RULE !!: Use 'invoice_details' for ALL Internal Sales/Quantity queries.\n"
-    context += "- RULE: Join 'invoice' -> 'invoice_details' to get 'product_quantity'.\n"
-    context += "- RULE: Join 'customer_details' -> 'invoice' using cd.customer_id = inv.cust_id.\n"
-    context += "- TABLE 'ims_sale': Use this for Market units. Join with 'ims_brick' on 'brickId' to get brick 'name'.\n"
-    context += "- TABLE 'customer_details': DOES NOT have a 'brick_name' column. To get brick names for internal sales:\n"
-    context += "  JOIN 'customer_details' cd ON ...\n"
-    context += "  JOIN 'ims_brick' ib ON cd.ims_brick_id = ib.id\n"
-    context += "  SELECT ib.name AS brick_name\n"
-    context += "- CRITICAL SQL RULE: Never return constants (like 0) as 'brick_name'. Always use the JOIN above to get the real 'name' from 'ims_brick'.\n"
-    context += "- CRITICAL SQL RULE: Exclude rows where 'brick_name' is NULL (use WHERE ib.name IS NOT NULL).\n"
-    context += "- CRITICAL SQL RULE: Always GROUP BY the actual column name selected (e.g., ib.name). DO NOT use column indexes.\n"
+    # Add explicit instructions for complex joins and case-insensitive matching
+    context += "\n--- MASTER SQL RULES (MANDATORY) ---\n"
+    context += "1. USE 'master_sale' FOR INTERNAL METRICS: It has product_name, product_quantity, total_amount, region_name, zone_name.\n"
+    context += "2. JOINING BRICK NAMES: 'master_sale' does NOT have brick_name. For brick-level internal sales, use this join:\n"
+    context += "   SELECT ib.name, SUM(ms.product_quantity) FROM master_sale ms JOIN customer_details cd ON ms.customer_id = cd.customer_id JOIN ims_brick ib ON cd.ims_brick_id = ib.id GROUP BY ib.name\n"
+    context += "3. NO CARTESIAN PRODUCTS: Never join 'ims_sale' and 'invoice_details' (or 'master_sale') in a single table join. It will multiply the numbers incorrectly.\n"
+    context += "   - To compare Internal vs Market, use CTEs (Common Table Expressions):\n"
+    context += "   WITH Internal AS (SELECT ib.name, SUM(ms.product_quantity) as qty FROM master_sale ms JOIN customer_details cd ON ms.customer_id = cd.customer_id JOIN ims_brick ib ON cd.ims_brick_id = ib.id GROUP BY 1),\n"
+    context += "        Market AS (SELECT ib.name, SUM(unit) as qty FROM ims_sale s JOIN ims_brick ib ON s.\"brickId\" = ib.id GROUP BY 1)\n"
+    context += "   SELECT i.name, i.qty AS \"Internal\", m.qty AS \"Market\" FROM Internal i JOIN Market m ON i.name = m.name\n"
+    context += "4. FUZZY SEARCH (ILIKE): For all user filters (like 'Gulshan'), use ILIKE with wildcards: WHERE ib.name ILIKE '%gulshan%'.\n"
+    context += "5. GULSHAN AGGREGATION: Gulshan has many blocks (Block 5, 6, etc.). Always use ILIKE '%gulshan%' to aggregate all of them.\n"
+    context += "6. EMPTY TABLES: 'orders' and 'targets' are EMPTY. For sales, always use 'master_sale' or 'invoice_details'.\n"
+    
     return context
 
 @st.cache_data(ttl=1800)
@@ -440,7 +443,8 @@ if prompt:
                         f"2. Group data by the real column name (e.g., GROUP BY \"brick_name\"). Never use numeric indexes.\n"
                         f"3. Exclude NULL or missing categories using WHERE/HAVING filters.\n"
                         f"4. If a category column (like brick_name) doesn't exist in the relevant tables, RETURN AN ERROR message instead of fake data.\n"
-                        f"5. Each unique category must have its own separate row in the results.\n\n"
+                        f"5. Each unique category must have its own separate row in the results.\n"
+                        f"6. MANDATORY: Use ILIKE for all string/name comparisons (e.g., ib.name ILIKE '%gulshan%') to prevent case-sensitivity misses.\n\n"
                         f"USER QUESTION: {prompt}"
                         f"{error_feedback}\n\n"
                         "RULES: Return ONLY valid PostgreSQL SELECT query inside triple backticks. Use double quotes for identifiers. Use LIMIT 10."
@@ -454,16 +458,8 @@ if prompt:
                             timeout=30.0
                         )
                     except Exception as api_err:
-                        # AUTO FALLBACK if primary is rate-limited (429) or fails
-                        if "429" in str(api_err) or "rate-limit" in str(api_err).lower():
-                            st.toast("⚠️ Primary Model busy, trying fallback (Llama 8B)...", icon="🔀")
-                            response = client.chat.completions.create(
-                                model="llama-3.1-8b-instant",
-                                messages=[{"role": "system", "content": "You are a professional database agent."}, {"role": "user", "content": gen_prompt}],
-                                timeout=20.0
-                            )
-                        else:
-                            raise api_err
+                        last_error = str(api_err)
+                        continue
                     
                     content = response.choices[0].message.content
                     sql_match = re.search(r"```sql\n(.*?)\n```", content, re.DOTALL)
@@ -488,7 +484,23 @@ if prompt:
                 df = pd.DataFrame(results)
                 
                 if df.empty:
-                    final_answer = "I executed the query, but it returned no data. This usually means the specific filters (like region name) didn't match anything in the database."
+                    # PROACTIVE DISCOVERY: Try to find similar bricks if the query mentioned a specific name
+                    discovery_msg = ""
+                    potential_brick = re.search(r"ILIKE '%(.*?)%'", sql_query, re.I)
+                    if potential_brick:
+                        search_term = potential_brick.group(1)
+                        discovery_results = run_sql_query(f"SELECT name FROM ims_brick WHERE name ILIKE '%{search_term}%' LIMIT 3")
+                        if discovery_results:
+                            names_list = "\n".join([f"{i+1}. {r['name']}" for i, r in enumerate(discovery_results)])
+                            discovery_msg = f"\n\n**💡 Did you mean one of these bricks?**\n{names_list}"
+
+                    final_answer = (
+                        "⚠️ **I executed the query, but it returned no data.**\n\n"
+                        "This usually means the filter doesn't match exactly. "
+                        "I've used case-insensitive matching, but the spelling might be different."
+                        f"{discovery_msg}\n\n"
+                        "Click the **Debug Info** below to see the SQL logic."
+                    )
                 else:
                     # IF CACHED: Skip AI summary for 1-second performance
                     if is_cached:
@@ -505,7 +517,8 @@ if prompt:
                 
                 with st.chat_message("assistant"):
                     st.markdown(final_answer)
-                    # st.code(sql_query, language="sql") # Optional: Show SQL for debugging
+                    with st.expander("🛠️ Show SQL Logic (Debug)"):
+                        st.code(sql_query, language="sql")
                     chart_data = None
                     if not df.empty:
                         # Use Smart Formatting
