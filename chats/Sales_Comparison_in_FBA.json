@@ -1,0 +1,364 @@
+[
+    {
+        "role": "user",
+        "content": "Compare internal sales vs market sales in F.B.AREA",
+        "timestamp": "12:59 PM - Mar 13, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Internal sales in F.B.AREA total approximately 2.5 million units, while market sales total around 7.4 million units. Market sales significantly outpace internal sales in the region.",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-15",
+                "Internal Units": 121310.0,
+                "Market Units": 380017.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-5",
+                "Internal Units": 29534.0,
+                "Market Units": 85995.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-10",
+                "Internal Units": 134352.0,
+                "Market Units": 430532.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-14",
+                "Internal Units": 512476.0,
+                "Market Units": 1473691.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-12",
+                "Internal Units": 53006.0,
+                "Market Units": 160990.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-13",
+                "Internal Units": 495923.0,
+                "Market Units": 1517766.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-8",
+                "Internal Units": 320960.0,
+                "Market Units": 1118604.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-9",
+                "Internal Units": 177820.0,
+                "Market Units": 620109.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-1",
+                "Internal Units": 53011.0,
+                "Market Units": 166252.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-17",
+                "Internal Units": 408216.0,
+                "Market Units": 1170808.0
+            }
+        ],
+        "chart_data": [
+            "Brick Name",
+            [
+                "Internal Units",
+                "Market Units"
+            ]
+        ],
+        "follow_ups": [
+            "\"Why the big difference?\"",
+            "\"What causes the gap?\""
+        ],
+        "timestamp": "12:59 PM - Mar 13, 2026"
+    },
+    {
+        "role": "user",
+        "content": "\"Why the big difference?\"",
+        "timestamp": "01:00 PM - Mar 13, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "The top areas with the biggest differences between Internal Units and IMS Market Units are F.B.AREA BLOCK-3 and GULSHAN-E-IQBAL BLOCK-5, with differences of 1,676,538 and 1,170,803, respectively. The total differences across the top 10 areas range from 797,644 to 1,676,538.",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Internal Units": 783091.0,
+                "IMS Market Units": 2459629.0,
+                "Difference": 1676538.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Units": 585494.0,
+                "IMS Market Units": 1756297.0,
+                "Difference": 1170803.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-13",
+                "Internal Units": 495923.0,
+                "IMS Market Units": 1517766.0,
+                "Difference": 1021843.0
+            },
+            {
+                "Brick Name": "P.I.B. COLONY",
+                "Internal Units": 507616.0,
+                "IMS Market Units": 1520200.0,
+                "Difference": 1012584.0
+            },
+            {
+                "Brick Name": "A.H.ISPHANI ROAD",
+                "Internal Units": 492454.0,
+                "IMS Market Units": 1497242.0,
+                "Difference": 1004788.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-14",
+                "Internal Units": 512476.0,
+                "IMS Market Units": 1473691.0,
+                "Difference": 961215.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Internal Units": 450985.0,
+                "IMS Market Units": 1383500.0,
+                "Difference": 932515.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Internal Units": 437941.0,
+                "IMS Market Units": 1358893.0,
+                "Difference": 920952.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-20",
+                "Internal Units": 419869.0,
+                "IMS Market Units": 1248237.0,
+                "Difference": 828368.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-8",
+                "Internal Units": 320960.0,
+                "IMS Market Units": 1118604.0,
+                "Difference": 797644.0
+            }
+        ],
+        "chart_data": [
+            "Brick Name",
+            [
+                "Internal Units",
+                "IMS Market Units",
+                "Difference"
+            ]
+        ],
+        "follow_ups": [
+            "\"What caused these differences?\"",
+            "\"Are they increasing?\""
+        ],
+        "timestamp": "01:00 PM - Mar 13, 2026"
+    },
+    {
+        "role": "user",
+        "content": "ye difference ki based pr tm ne add kiya ha",
+        "timestamp": "01:01 PM - Mar 13, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "The top areas by internal units are F.B.AREA BLOCK-3 with 783,091 units and GULSHAN-E-IQBAL BLOCK-5 with 585,494 units. The total internal units across the top 10 areas range from 783,091 to 419,869.",
+        "data": [
+            {
+                "name": "F.B.AREA BLOCK-3",
+                "Internal Units": 783091.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Units": 585494.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-14",
+                "Internal Units": 512476.0
+            },
+            {
+                "name": "P.I.B. COLONY",
+                "Internal Units": 507616.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-13",
+                "Internal Units": 495923.0
+            },
+            {
+                "name": "A.H.ISPHANI ROAD",
+                "Internal Units": 492454.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Internal Units": 450985.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-2",
+                "Internal Units": 444031.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Internal Units": 437941.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-20",
+                "Internal Units": 419869.0
+            }
+        ],
+        "chart_data": [
+            "name",
+            [
+                "Internal Units"
+            ]
+        ],
+        "follow_ups": [
+            "What are the units?",
+            "Total units for all?"
+        ],
+        "timestamp": "01:02 PM - Mar 13, 2026"
+    },
+    {
+        "role": "user",
+        "content": "isme hm asa kiya kr skte hn jis se difference ma bethri ay",
+        "timestamp": "01:04 PM - Mar 13, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "The top areas with the largest differences between market and internal units are F.B.AREA BLOCK-3 with a difference of 1,676,538 and GULSHAN-E-IQBAL BLOCK-5 with a difference of 1,170,803. The smallest difference is in F.B.AREA BLOCK-8 with 797,644.",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Internal Units": 783091.0,
+                "Market Units": 2459629.0,
+                "Difference": 1676538.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Units": 585494.0,
+                "Market Units": 1756297.0,
+                "Difference": 1170803.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-13",
+                "Internal Units": 495923.0,
+                "Market Units": 1517766.0,
+                "Difference": 1021843.0
+            },
+            {
+                "Brick Name": "P.I.B. COLONY",
+                "Internal Units": 507616.0,
+                "Market Units": 1520200.0,
+                "Difference": 1012584.0
+            },
+            {
+                "Brick Name": "A.H.ISPHANI ROAD",
+                "Internal Units": 492454.0,
+                "Market Units": 1497242.0,
+                "Difference": 1004788.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-14",
+                "Internal Units": 512476.0,
+                "Market Units": 1473691.0,
+                "Difference": 961215.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Internal Units": 450985.0,
+                "Market Units": 1383500.0,
+                "Difference": 932515.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Internal Units": 437941.0,
+                "Market Units": 1358893.0,
+                "Difference": 920952.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-20",
+                "Internal Units": 419869.0,
+                "Market Units": 1248237.0,
+                "Difference": 828368.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-8",
+                "Internal Units": 320960.0,
+                "Market Units": 1118604.0,
+                "Difference": 797644.0
+            }
+        ],
+        "chart_data": [
+            "Brick Name",
+            [
+                "Internal Units",
+                "Market Units",
+                "Difference"
+            ]
+        ],
+        "follow_ups": [
+            "What causes large differences?",
+            "Is data up to date?"
+        ],
+        "timestamp": "01:04 PM - Mar 13, 2026"
+    },
+    {
+        "role": "user",
+        "content": "ye difference ki based pr tm ne add kiya ha",
+        "timestamp": "01:15 PM - Mar 13, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "data": [
+            {
+                "name": "F.B.AREA BLOCK-3",
+                "Internal Units": 783091.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Units": 585494.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-14",
+                "Internal Units": 512476.0
+            },
+            {
+                "name": "P.I.B. COLONY",
+                "Internal Units": 507616.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-13",
+                "Internal Units": 495923.0
+            },
+            {
+                "name": "A.H.ISPHANI ROAD",
+                "Internal Units": 492454.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Internal Units": 450985.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-2",
+                "Internal Units": 444031.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Internal Units": 437941.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-20",
+                "Internal Units": 419869.0
+            }
+        ],
+        "chart_data": [
+            "name",
+            [
+                "Internal Units"
+            ]
+        ],
+        "follow_ups": [],
+        "timestamp": "01:15 PM - Mar 13, 2026"
+    }
+]

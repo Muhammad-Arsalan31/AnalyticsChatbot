@@ -177,8 +177,8 @@ def load_session(filename):
 def run_sql_query(query: str):
     forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE"]
     query_u = query.upper()
-    if not query_u.strip().startswith("SELECT"):
-        return {"error": "Only SELECT queries are allowed."}
+    if not (query_u.strip().startswith("SELECT") or query_u.strip().startswith("WITH")):
+        return {"error": "Only SELECT or WITH queries are allowed."}
     for word in forbidden:
         if re.search(rf'\b{word}\b', query_u):
             return {"error": f"Keyword {word} is not allowed."}
@@ -348,21 +348,20 @@ if not st.session_state.messages:
         "Which Team has the highest target vs achievement?",
         "What is the market share of Karachi brick?"
     ]
-    # Free shuffling - No Tokens used!
     random.shuffle(all_starters)
     starters = all_starters[:4]
     
     cols = st.columns(2)
     for i, s in enumerate(starters):
         with cols[i % 2]:
-            if st.button(s, key=f"start_{i}"):
-                submit_question(s)
-                st.rerun()
+            st.button(s, key=f"starter_{s}", on_click=submit_question, args=(s,))
 
 # --- CHAT INTERFACE ---
 for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        if "timestamp" in message:
+            st.caption(f"🕒 {message['timestamp']}")
         if "data" in message:
             df_raw = pd.DataFrame(message["data"])
             df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
@@ -402,9 +401,11 @@ prompt = user_input or st.session_state.prompt_trigger
 
 if prompt:
     st.session_state.prompt_trigger = None # Reset
+    current_time = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
     with st.chat_message("user"):
         st.markdown(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+        st.caption(f"🕒 {current_time}")
+    st.session_state.messages.append({"role": "user", "content": prompt, "timestamp": current_time})
 
     with st.spinner("Retrieving Data..."):
         try:
@@ -428,14 +429,26 @@ if prompt:
                 schema = get_schema()
                 rag_context = get_rag_context(prompt)
                 
+                chat_context = ""
+                if len(st.session_state.messages) > 1:
+                    history = st.session_state.messages[-5:-1] # Get up to 4 prev msgs (excluding current)
+                    chat_context = "PREVIOUS CONVERSATION CONTEXT:\n"
+                    for msg in history:
+                        role_name = "User" if msg["role"] == "user" else "Assistant"
+                        content_txt = str(msg.get("content", ""))
+                        chat_context += f"{role_name}: {content_txt[:500]}\n"
+                
                 max_retries = 3
                 current_attempt = 0
                 last_error = ""
+                is_conversational = False
+                conversational_reply = ""
                 
                 while current_attempt < max_retries:
                     current_attempt += 1
                     error_feedback = f"\n\nLAST ERROR WAS: {last_error}" if last_error else ""
                     gen_prompt = (
+                        f"{chat_context}\n"
                         f"KNOWLEDGE BASE & BUSINESS LOGIC:\n{rag_context}\n\n"
                         f"DATABASE SCHEMA:\n{schema}\n\n"
                         f"QUERY VALIDATION RULES (CRITICAL BEFORE EXECUTING):\n"
@@ -448,7 +461,9 @@ if prompt:
                         f"7. Exclude NULL or missing categories using WHERE/HAVING filters.\n\n"
                         f"USER QUESTION: {prompt}"
                         f"{error_feedback}\n\n"
-                        "RULES: Return ONLY valid PostgreSQL SELECT query inside triple backticks. Use double quotes for identifiers. Use LIMIT 10."
+                        "ROUTING RULES (Follow Carefully):\n"
+                        "OPTION A: If the user requires NEW data from the database, return ONLY a valid PostgreSQL SELECT query inside ```sql \n ... \n```. Use double quotes for identifiers and LIMIT 10.\n"
+                        "OPTION B: If the user is asking a normal conversational question, asking for explanations about a past response, or greeting you, DO NOT generate SQL. Instead, reply conversationally based on the context provided above inside ```chat \n ... \n```."
                     )
                     
                     # ATTEMPT GENERATION
@@ -463,7 +478,16 @@ if prompt:
                         continue
                     
                     content = response.choices[0].message.content
+                    chat_match = re.search(r"```chat\n(.*?)\n```", content, re.DOTALL)
                     sql_match = re.search(r"```sql\n(.*?)\n```", content, re.DOTALL)
+                    
+                    if chat_match:
+                        is_conversational = True
+                        conversational_reply = chat_match.group(1).strip()
+                        results = []
+                        sql_query = ""
+                        break
+
                     sql_query = sql_match.group(1).strip() if sql_match else content.strip()
 
                     results = run_sql_query(sql_query)
@@ -482,8 +506,20 @@ if prompt:
                         break
 
             # Final Output Handling
-            if isinstance(results, dict) and "error" in results:
+            if is_conversational:
+                # Bypass DB logic, output chat directly
+                final_answer = conversational_reply
+                df = pd.DataFrame()
+                current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
+                with st.chat_message("assistant"):
+                    st.markdown(final_answer)
+                    st.caption(f"🕒 {current_time_ai}")
+                chart_data = None
+            elif isinstance(results, dict) and "error" in results:
                 st.error(f"Failed after {max_retries} attempts. Final Error: {results['error']}")
+                final_answer = f"Error: {results['error']}"
+                df = pd.DataFrame()
+                chart_data = None
             else:
                 if is_cached:
                     st.toast("⚡ Result served from Cache (SQL generation skipped)", icon="🔥")
@@ -517,16 +553,18 @@ if prompt:
                         final_answer = f"⚡ **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance."
                     else:
                         sum_prompt = (
+                            f"{chat_context}\n"
                             f"User asked: {prompt}\nDB Result: {results}\n\n"
-                            "Task: Provide a concise (1-2 sentence) business summary of the results.\n"
-                            "STRICT RULES:\n"
-                            "- Just summarize the numeric findings simply. BE VERY BRIEF."
+                            "Task: If the user is asking a conversational question, about a chart, or about your reasoning/SQL logic, answer them directly and explain your reasoning.\n"
+                            "Otherwise, if it's a standard data query, provide a concise (1-2 sentence) business summary of the numeric results."
                         )
                         summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": sum_prompt}], timeout=30.0)
                         final_answer = summary_res.choices[0].message.content
                 
+                current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
                 with st.chat_message("assistant"):
                     st.markdown(final_answer)
+                    st.caption(f"🕒 {current_time_ai}")
                     with st.expander("🛠️ Show SQL Logic (Debug)"):
                         st.code(sql_query, language="sql")
                     chart_data = None
@@ -579,7 +617,7 @@ if prompt:
                 except:
                     follow_ups = []
 
-                st.session_state.messages.append({"role": "assistant", "content": final_answer, "data": df_numeric if not df.empty else df, "chart_data": chart_data, "follow_ups": follow_ups})
+                st.session_state.messages.append({"role": "assistant", "content": final_answer, "data": df_numeric if not df.empty else df, "chart_data": chart_data, "follow_ups": follow_ups, "timestamp": current_time_ai})
                 # Auto-save
                 new_id = save_session(st.session_state.current_session, st.session_state.messages)
                 if st.session_state.current_session.startswith("New_Session_"):

@@ -176,5 +176,30 @@
             "What is F.B.AREA BLOCK-3?",
             "Why the large range?"
         ]
+    },
+    {
+        "role": "user",
+        "content": "F.B.AREA ma kitne doctor hein",
+        "timestamp": "01:28 PM - Mar 13, 2026"
+    },
+    {
+        "role": "user",
+        "content": "F.B.AREA ma kitne doctor hein",
+        "timestamp": "01:29 PM - Mar 13, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "There are 0 doctors in F.B.AREA. The query result returned a count of 0, indicating no doctor records exist for this area.",
+        "data": [
+            {
+                "count": "0"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Why no doctors?",
+            "Is data up dated?"
+        ],
+        "timestamp": "01:29 PM - Mar 13, 2026"
     }
 ]
