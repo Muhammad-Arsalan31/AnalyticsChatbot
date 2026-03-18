@@ -145,12 +145,16 @@ def save_session(session_id, messages):
             try:
                 res = client.chat.completions.create(
                     model=LLM_MODEL,
-                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words): {first_q}"}],
+                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words). Output ONLY the 4 words, nothing else: {first_q}"}],
                     timeout=5.0
                 )
-                title = res.choices[0].message.content.strip().replace(" ", "_").replace('"', '').replace("'", "")
+                raw_title = res.choices[0].message.content.strip()
+                # Sanitize for valid OS filename (remove special chars, newlines)
+                clean_title = re.sub(r'[\\/*?:"<>|\n\r]+', "", raw_title)
+                title = clean_title.replace(" ", "_")[:50]
             except:
-                title = first_q[:20].replace(" ", "_")
+                clean_fq = re.sub(r'[\\/*?:"<>|\n\r]+', "", first_q[:30])
+                title = clean_fq.replace(" ", "_")
     
     file_path = os.path.join(CHATS_DIR, f"{title}.json")
     # Save with dataframes converted to dict for JSON
@@ -438,9 +442,10 @@ if prompt:
                         content_txt = str(msg.get("content", ""))
                         chat_context += f"{role_name}: {content_txt[:500]}\n"
                 
-                max_retries = 3
+                max_retries = 5
                 current_attempt = 0
                 last_error = ""
+                exploration_feedback = ""
                 is_conversational = False
                 conversational_reply = ""
                 
@@ -457,13 +462,13 @@ if prompt:
                         f"3. If filter value may differ, ALWAYS use ILIKE '%value%'.\n"
                         f"4. If your previous query returned 0 rows, you MUST generate a simple query to inspect available values: SELECT DISTINCT <column_name> FROM <table> LIMIT 10;\n"
                         f"5. Never return constant values like 0 for 'brick_name'. Always select the actual column.\n"
-                        f"6. Group data by the real column name. Never use numeric indexes.\n"
-                        f"7. Exclude NULL or missing categories using WHERE/HAVING filters.\n\n"
                         f"USER QUESTION: {prompt}"
-                        f"{error_feedback}\n\n"
-                        "ROUTING RULES (Follow Carefully):\n"
-                        "OPTION A: If the user requires NEW data from the database, return ONLY a valid PostgreSQL SELECT query inside ```sql \n ... \n```. Use double quotes for identifiers and LIMIT 10.\n"
-                        "OPTION B: If the user is asking a normal conversational question, asking for explanations about a past response, or greeting you, DO NOT generate SQL. Instead, reply conversationally based on the context provided above inside ```chat \n ... \n```."
+                        f"{error_feedback}"
+                        f"{exploration_feedback}\n\n"
+                        "ROUTING RULES (Follow Carefully - AUTONOMOUS AGENT MODE):\n"
+                        "OPTION A (Explore Data): If you are unsure of exact spellings or if your previous query returned 0 rows, write a diagnostic query inside ```explore\n ... \n``` (e.g. SELECT DISTINCT name). I will run it and feed the results back to you secretly so you can fix your final query.\n"
+                        "OPTION B (Final Data): If you are confident your query will bring the correct data for the user, return the PostgreSQL SELECT query inside ```sql\n ... \n```.\n"
+                        "OPTION C (Chat): If the user is asking a normal conversational question or greetings, DO NOT generate SQL. Reply inside ```chat\n ... \n```."
                     )
                     
                     # ATTEMPT GENERATION
@@ -480,6 +485,7 @@ if prompt:
                     content = response.choices[0].message.content
                     chat_match = re.search(r"```chat\n(.*?)\n```", content, re.DOTALL)
                     sql_match = re.search(r"```sql\n(.*?)\n```", content, re.DOTALL)
+                    explore_match = re.search(r"```explore\n(.*?)\n```", content, re.DOTALL)
                     
                     if chat_match:
                         is_conversational = True
@@ -487,6 +493,16 @@ if prompt:
                         results = []
                         sql_query = ""
                         break
+
+                    if explore_match:
+                        explore_query = explore_match.group(1).strip()
+                        exp_results = run_sql_query(explore_query)
+                        if isinstance(exp_results, dict) and "error" in exp_results:
+                            last_error = exp_results["error"]
+                        else:
+                            exploration_feedback += f"\n\n[EXPLORATION RESULTS for '{explore_query}']:\n{exp_results}\nUse these exact values in your next ```sql``` query."
+                            last_error = ""
+                        continue
 
                     sql_query = sql_match.group(1).strip() if sql_match else content.strip()
 
@@ -497,7 +513,7 @@ if prompt:
                         continue
                         
                     if not results and current_attempt < max_retries:
-                        last_error = f"The query returned 0 rows. As per Validation Rule 4, generate a query to SELECT DISTINCT values from the filtered column to see what data is actually available, so the user knows what they can search for."
+                        last_error = f"Your final ```sql``` query returned exactly 0 rows. Please use ```explore``` option next to SELECT DISTINCT values from the database and find out what the actual spellings or values are before returning another ```sql``` query."
                         continue
                         
                     else:
@@ -537,13 +553,15 @@ if prompt:
                             names_list = "\n".join([f"- {r['name']}" for r in discovery_results])
                             discovery_msg = f"Available similar options in database:\n{names_list}"
 
+                    discovery_context = f"I found these similar options in the database:\n{discovery_msg}\nIncorporate these options into your advice." if discovery_msg else "I could not find any similar alternative names in the database."
+
                     # Let the LLM generate a friendly "no data" message
                     empty_prompt = (
                         f"User asked: {prompt}\n\n"
                         f"Your SQL query returned exactly 0 rows.\n"
-                        f"To assist the user, explain politely that the specific filter they used might not match exactly.\n"
-                        f"If I found similar available options in the database, here they are: {discovery_msg}\n"
-                        f"Incorporate these options into your advice if they exist."
+                        f"To assist the user, explain politely that the specific filter they used might not match exactly, or the data might not be available for their specific combination.\n"
+                        f"IMPORTANT: {discovery_context}\n"
+                        f"Do NOT make up or hallucinate placeholder options. If no options are provided, just tell the user to try a different query."
                     )
                     empty_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": empty_prompt}], timeout=30.0)
                     final_answer = empty_res.choices[0].message.content
