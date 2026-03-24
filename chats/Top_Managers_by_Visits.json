@@ -1,0 +1,136 @@
+[
+    {
+        "role": "user",
+        "content": "Which 3 managers have made the most planned visits according to the doctor_plan table? Show their names and the total number of visits they made.",
+        "timestamp": "11:23 AM - Mar 24, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Based on the data, WAQAS and HAIDER ALI are the top two managers in terms of planned visits, with 170 and 140 visits respectively, but since the question asks for the top 3 managers, we are missing one more manager to provide a complete answer. The data result provided only includes the top two managers, suggesting that the query may need to be re-run or the database result is incomplete to give a full response.",
+        "data": [
+            {
+                "name": "WAQAS",
+                "Visit Count": 170.0
+            },
+            {
+                "name": "HAIDER ALI",
+                "Visit Count": 140.0
+            }
+        ],
+        "chart_data": [
+            "name",
+            [
+                "Visit Count"
+            ]
+        ],
+        "follow_ups": [
+            "Who is third?",
+            "Show full results?"
+        ],
+        "timestamp": "11:23 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Show me the top 3 ROI deals where the sales were much higher than the investment amount. Please show the Deal Name, Investment Amount, and the Sales.",
+        "timestamp": "11:24 AM - Mar 24, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "It seems like the query you ran didn't yield any results. This could be due to the specific filters you applied or the combination of criteria you used, which might not have matched any existing data in the database. Unfortunately, I couldn't find any similar or alternative options that fit your request. \n\nI recommend trying a different query or adjusting the parameters of your current query to see if you can find the information you're looking for. If you have any more details or need assistance with formulating a new query, feel free to ask!",
+        "data": [],
+        "chart_data": null,
+        "follow_ups": [
+            "\"What keywords to use?\"",
+            "\"Try again?\""
+        ],
+        "timestamp": "11:24 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "\"What keywords to use?\"",
+        "timestamp": "11:24 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Which region (region_name) generated the highest total revenue in master_sale",
+        "timestamp": "11:25 AM - Mar 24, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "The region 'RM - KHI - 1' generated the highest total revenue, with a total of approximately 2.835 billion. This suggests that the 'RM - KHI - 1' region is the top-performing region in terms of revenue.",
+        "data": [
+            {
+                "region_name": "RM - KHI - 1",
+                "total_revenue": 2835245667.5
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "What is RM?",
+            "Why so high?"
+        ],
+        "timestamp": "11:26 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": " \"RM - KHI - 1\" ki kitni Sales hain ",
+        "timestamp": "11:31 AM - Mar 24, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "The region 'RM - KHI - 1' has approximately 2.835 billion in sales, totaling 2,835,245,667.50. This indicates a substantial revenue generation from this region.",
+        "data": [
+            {
+                "sum": "2835245667.500000000000000000000000000000"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "What is growth rate?",
+            "How many customers?"
+        ],
+        "timestamp": "11:31 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": " \"RM - KHI - 1\"  ke andr jo zones or areas ha unki seprate sales batow",
+        "timestamp": "11:32 AM - Mar 24, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "The 'RM - KHI - 1' region has distinct sales contributions from its zones, with 'ZM - KHI - 1' generating the highest sales of approximately 2.42 billion, followed by 'ZM - KHI - 2' with around 390 million, and relatively lower sales from 'ZM - KHI - 4' and 'ZM - KHI - 3' with 14.45 million and 8.55 million respectively. This breakdown indicates a significant variance in sales performance across different zones within the 'RM - KHI - 1' region.",
+        "data": [
+            {
+                "zone_name": "ZM - KHI - 1",
+                "region_name": "RM - KHI - 1",
+                "total_sales": 2421976943.0
+            },
+            {
+                "zone_name": "ZM - KHI - 2",
+                "region_name": "RM - KHI - 1",
+                "total_sales": 390270883.5
+            },
+            {
+                "zone_name": "ZM - KHI - 4",
+                "region_name": "RM - KHI - 1",
+                "total_sales": 14451455.0
+            },
+            {
+                "zone_name": "ZM - KHI - 3",
+                "region_name": "RM - KHI - 1",
+                "total_sales": 8546386.0
+            }
+        ],
+        "chart_data": [
+            "zone_name",
+            [
+                "total_sales"
+            ]
+        ],
+        "follow_ups": [
+            "What caused variance?",
+            "Why so low?"
+        ],
+        "timestamp": "11:33 AM - Mar 24, 2026"
+    }
+]

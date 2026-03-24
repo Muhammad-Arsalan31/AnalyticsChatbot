@@ -1,0 +1,688 @@
+[
+    {
+        "role": "user",
+        "content": "hamare pass jo doctors ha unke naam kia ha",
+        "timestamp": "10:43 AM - Mar 24, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hamare paas 150 se zyada doctors hain jo ki patienton ki dekhbhal ke liye available hain, inmein se kuch notable doctors ke naam hain Dr. Aysha, Dr. Faisal Ahmed, Dr. Lubna Kamani, aur Dr. Tariq Haider.",
+        "data": [
+            {
+                "name": "DR. AYSHA"
+            },
+            {
+                "name": "FARYAL TARIQ"
+            },
+            {
+                "name": "INAM E KHUDA"
+            },
+            {
+                "name": "IRSHAD AHMED"
+            },
+            {
+                "name": "DR. BASEER SULTAN"
+            },
+            {
+                "name": "DR. BASHIR AHMED SOLANGI"
+            },
+            {
+                "name": "NABILA DANISH"
+            },
+            {
+                "name": "DR. BEENISH"
+            },
+            {
+                "name": "QAISAR WASEEM"
+            },
+            {
+                "name": "DR. CAPT ABID HUSSAIN"
+            },
+            {
+                "name": "DR. DILIP KUMAR"
+            },
+            {
+                "name": "RASHID JAMEEL PEERZADA"
+            },
+            {
+                "name": "RASHID NASEEM"
+            },
+            {
+                "name": "DR. ERUM MEMON"
+            },
+            {
+                "name": "DR. FAISAL AHMED"
+            },
+            {
+                "name": "SAAD"
+            },
+            {
+                "name": "DR. FAISAL AHMED"
+            },
+            {
+                "name": "SAIRA ABBAS"
+            },
+            {
+                "name": "DR. FAISAL DABEER"
+            },
+            {
+                "name": "SHOAIB AHMED"
+            },
+            {
+                "name": "DR. FARHAN GULZAR"
+            },
+            {
+                "name": "SHOAIB SIDDIQUI"
+            },
+            {
+                "name": "SOHAIL HUSSAIN"
+            },
+            {
+                "name": "DR. FARHAT ULLAH KHAN"
+            },
+            {
+                "name": "DR. FAROOQ ISMAIL SURIYA"
+            },
+            {
+                "name": "DR. FAROOQ KHAN"
+            },
+            {
+                "name": "DR. FARRUKH ABDALI"
+            },
+            {
+                "name": "DR. FOUZIA SIDDIQUE"
+            },
+            {
+                "name": "VINOD GANDHI"
+            },
+            {
+                "name": "WAHEED KHAN"
+            },
+            {
+                "name": "DR. G TARIQ HAIDER"
+            },
+            {
+                "name": "DR. HAFEEZ AHMED"
+            },
+            {
+                "name": "ZAHID RASHEED"
+            },
+            {
+                "name": "DR. HAFEEZ UL HASSAN"
+            },
+            {
+                "name": "ZOOBIA RAMZAN"
+            },
+            {
+                "name": "DR. HAFIZA AHMAD"
+            },
+            {
+                "name": "DR. HANIF MEMON"
+            },
+            {
+                "name": "DR. HASSAN KHAN"
+            },
+            {
+                "name": "DR. HASSAN MEHDI"
+            },
+            {
+                "name": "RAJESH KUMAR"
+            },
+            {
+                "name": "AABID SALEEM"
+            },
+            {
+                "name": "DR. HAZIM BAROHI"
+            },
+            {
+                "name": "DR. HAZIM BAROOHI"
+            },
+            {
+                "name": "DR. HUMAYUN KARWA"
+            },
+            {
+                "name": "DR. IFTIKHAR ARAYN"
+            },
+            {
+                "name": "DR. IMRAN SANDELLO"
+            },
+            {
+                "name": "DR. INAM RASOOL"
+            },
+            {
+                "name": "DR. IQBAL GATTA"
+            },
+            {
+                "name": "DR. IQBAL KHAMANI"
+            },
+            {
+                "name": "DR. IQBAL PATEL"
+            },
+            {
+                "name": "DR. IQTEDAR TOUFIQ"
+            },
+            {
+                "name": "DR. IRFAN HASHMAT"
+            },
+            {
+                "name": "DR. IRFAN MAJID"
+            },
+            {
+                "name": "DR. IZHAR A RAJPUT"
+            },
+            {
+                "name": "AFTAB HUSSAIN"
+            },
+            {
+                "name": "AMBREEN GHAFFAR"
+            },
+            {
+                "name": "AMIR ALI SOHANI"
+            },
+            {
+                "name": "DR. JAMEEL AHMED"
+            },
+            {
+                "name": "AYESHA ZIA"
+            },
+            {
+                "name": "DR. JAWAD US SALAM"
+            },
+            {
+                "name": "FAISAL DABEER"
+            },
+            {
+                "name": "FAROOQ ISMAIL SORIYA"
+            },
+            {
+                "name": "G.M BHATI"
+            },
+            {
+                "name": "Farooq khan"
+            },
+            {
+                "name": "ILMANA ASHRAF"
+            },
+            {
+                "name": "ISMAIL AJMAL"
+            },
+            {
+                "name": "DR. JAWED SAMI"
+            },
+            {
+                "name": "DR. JAWWAD"
+            },
+            {
+                "name": "DR. JAWWAD US SALAM"
+            },
+            {
+                "name": "DR. K.U MAKKI"
+            },
+            {
+                "name": "MASROOR AHMED PATHAN"
+            },
+            {
+                "name": "DR. KALEEM ULLAH SHIEKH"
+            },
+            {
+                "name": "DR. KHALID MEHMOOD"
+            },
+            {
+                "name": "DR. KHALID MEMON"
+            },
+            {
+                "name": "FAJAR BAQER"
+            },
+            {
+                "name": "MUZAFFAR UD DIN"
+            },
+            {
+                "name": "DR. LUBNA KAMANI"
+            },
+            {
+                "name": "NADEEM ASAD"
+            },
+            {
+                "name": "DR. LUBNA NAZEER"
+            },
+            {
+                "name": "NAVEED SHABIR"
+            },
+            {
+                "name": "DR. KARIM ULLAH MAKKI"
+            },
+            {
+                "name": "DR. NIGHAT KHALID"
+            },
+            {
+                "name": "DR. AM.ASLAM"
+            },
+            {
+                "name": "DR. MUHAMMAD AAMIR SHAIKH"
+            },
+            {
+                "name": "SANJAY KUMAR"
+            },
+            {
+                "name": "DR. TARIQ HAIDER SHAH"
+            },
+            {
+                "name": "DR. ASIM AHMED AFAQ"
+            },
+            {
+                "name": "SHAHID KARIM"
+            },
+            {
+                "name": "DR. ARSHAD HAMID"
+            },
+            {
+                "name": "DR. HARIS ALVI"
+            },
+            {
+                "name": "SOHAIL AHMED"
+            },
+            {
+                "name": "DR. MUHAMMAD WAJID HUSSAIN"
+            },
+            {
+                "name": "DR. MUKESH KUMAR"
+            },
+            {
+                "name": "DR. MUKESH LAAL"
+            },
+            {
+                "name": "TAUSEEF AHMED"
+            },
+            {
+                "name": "YASEEN RAUF"
+            },
+            {
+                "name": "DR. SARWAT"
+            },
+            {
+                "name": "DR. TARIQ SOHAIL BUTT"
+            },
+            {
+                "name": "DR. SHEBA HAIDER"
+            },
+            {
+                "name": "AYUB MUSANI"
+            },
+            {
+                "name": "DR. HASAN MEHMOOD"
+            },
+            {
+                "name": "KIRAN KHAN"
+            },
+            {
+                "name": "DR. HINA"
+            },
+            {
+                "name": "DR. KHALID"
+            },
+            {
+                "name": "DR. M. MUNNAWAR"
+            },
+            {
+                "name": "FAISAL AHMED"
+            },
+            {
+                "name": "FAJAR BAQIR"
+            },
+            {
+                "name": "DR. MUHAMMAD NAEEM"
+            },
+            {
+                "name": "ADNAN MAZHAR"
+            },
+            {
+                "name": "DR. NABEEL"
+            },
+            {
+                "name": "DR. OBAID UR REHMAN"
+            },
+            {
+                "name": "DR. SALEEM AHMAD RAJPUT"
+            },
+            {
+                "name": "DR. SHIREEN"
+            },
+            {
+                "name": "DR. IMRAN"
+            },
+            {
+                "name": "DR. MUMTAZ NIYANI"
+            },
+            {
+                "name": "DR. NAJIA NASIR"
+            },
+            {
+                "name": "ABDUL MALIK"
+            },
+            {
+                "name": "DR. M.H LAKHANI"
+            },
+            {
+                "name": "DR. MUHAMMAD SHOAIB LAKHANI"
+            },
+            {
+                "name": "DR. KAMAL AHMAD"
+            },
+            {
+                "name": "AJMAL KAZMI"
+            },
+            {
+                "name": "AK DOSANI ."
+            },
+            {
+                "name": "DR. KAMAL MUHAMMAD YOUSUF"
+            },
+            {
+                "name": "DR. MUHAMMAD AAMIR SAGHIR"
+            },
+            {
+                "name": "DR. MUHAMMAD MANSOOR UL HAQ"
+            },
+            {
+                "name": "DR. SAJJAD JAMEEL"
+            },
+            {
+                "name": "FAREED UD DIN"
+            },
+            {
+                "name": "DR. SAMAR ABBAS"
+            },
+            {
+                "name": "MAJID KHAN"
+            },
+            {
+                "name": "DR. SHAHID KAREEM"
+            },
+            {
+                "name": "DR. SHAHID NOOR"
+            },
+            {
+                "name": "FARRUKH ABDALI"
+            },
+            {
+                "name": "HASEEB UR REHMAN"
+            },
+            {
+                "name": "DR. RIZWAN HAROON SHEIKH"
+            },
+            {
+                "name": "DR. TAHIRA PERVEEN"
+            },
+            {
+                "name": "DR. UZMA SHABAB"
+            },
+            {
+                "name": "DR. ZEHRA NAQVI"
+            },
+            {
+                "name": "DR. FAROOQ MAMJI"
+            },
+            {
+                "name": "MUNEEB YOUNUS"
+            },
+            {
+                "name": "UBAID UR REHMAN"
+            },
+            {
+                "name": "DR. HARIS ALVI"
+            },
+            {
+                "name": "DR. MUZAFFAR UD DIN"
+            },
+            {
+                "name": "Dr. ABC"
+            },
+            {
+                "name": "DR. NADIA NAWAZ"
+            },
+            {
+                "name": "DR. OBAID SHIEKH"
+            },
+            {
+                "name": "DR. SADIA MEMONA"
+            },
+            {
+                "name": "DR. SHAFAQ SHAHID"
+            },
+            {
+                "name": "DR. UMMUL KIRAM"
+            },
+            {
+                "name": "DR. MUHAMMAD HANIF KHAN"
+            },
+            {
+                "name": "DR. NOOR MUHAMMAD MEMON"
+            },
+            {
+                "name": "DR. TARIQ ALAM"
+            },
+            {
+                "name": "DR. SALEEM KHOKHAR"
+            },
+            {
+                "name": "DR. MISBAH NOREEN"
+            },
+            {
+                "name": "DR. YASEEN ALI"
+            },
+            {
+                "name": "DR. YASEEN ROUF"
+            },
+            {
+                "name": "DR. KHALID MASOOD"
+            },
+            {
+                "name": "DR. SAQIB ZAIN"
+            },
+            {
+                "name": "DR. SHAZIA SHEIKH"
+            },
+            {
+                "name": "DR. ASADULLAH SIDDIQUE"
+            },
+            {
+                "name": "DR. AYESHA"
+            },
+            {
+                "name": "DR. SAIFULLAH KHAN"
+            },
+            {
+                "name": "DR. ASAD AKRAM FAROOQUI"
+            },
+            {
+                "name": "DR. ASMA ASHIQ"
+            },
+            {
+                "name": "DR. MUHAMMAD ALI"
+            },
+            {
+                "name": "DR. SAAD"
+            },
+            {
+                "name": "DR. SUMAIR AHMED"
+            },
+            {
+                "name": "DR. SOHAIL ZAHEER"
+            },
+            {
+                "name": "DR. ZIA UL HASSAN"
+            },
+            {
+                "name": "DR. M ASLAM"
+            },
+            {
+                "name": "DR. M. SHAHID"
+            },
+            {
+                "name": "DR. M. SHEHZAD"
+            },
+            {
+                "name": "DR. M.TARIQ FARMAN"
+            },
+            {
+                "name": "DR. MAHEEN"
+            },
+            {
+                "name": "DR. MAHIRA SHAFI"
+            },
+            {
+                "name": "DR. MAJID KHAN"
+            },
+            {
+                "name": "DR. MAJID SULEIMAN"
+            },
+            {
+                "name": "DR. MANZAR HUSSAIN"
+            },
+            {
+                "name": "DR. MEHFOOZ ALAM"
+            },
+            {
+                "name": "DR. MIRZA RAZA ALI"
+            },
+            {
+                "name": "DR. MUBASHIR"
+            },
+            {
+                "name": "DR. MUHAMMAD TARIQ"
+            },
+            {
+                "name": "DR. NABILA DANISH"
+            },
+            {
+                "name": "DR. NADEEM MEMON"
+            },
+            {
+                "name": "DR. NAEEMA ALI"
+            },
+            {
+                "name": "DR. NAJMUDDIN PABANI"
+            },
+            {
+                "name": "DR. NASEER AHMED"
+            },
+            {
+                "name": "DR. NASEER UDDIN SHAHEEN"
+            },
+            {
+                "name": "DR. NASIR MEHMOOD KIYANI"
+            },
+            {
+                "name": "DR. NASREEN HAROON"
+            },
+            {
+                "name": "DR. NAVEED SHABBIR"
+            },
+            {
+                "name": "DR. NAVEED UDDIN"
+            },
+            {
+                "name": "DR. NISAR RAO"
+            },
+            {
+                "name": "DR. NUZHAT SULTANA"
+            },
+            {
+                "name": "DR. OBAID HASHMI"
+            },
+            {
+                "name": "DR. OWAIS KHAN"
+            },
+            {
+                "name": "DR. PERVAIZ AHMED"
+            },
+            {
+                "name": "DR. PROF. KARIM ULLAH MAKKI"
+            },
+            {
+                "name": "DR. QUDSIA"
+            },
+            {
+                "name": "DR. QUDSIA SHAFIQUE"
+            },
+            {
+                "name": "DR. RAJESH KUMAR"
+            },
+            {
+                "name": "DR. RAJESH KUMAR WADWAH"
+            },
+            {
+                "name": "DR. RAKESH PANJWANI"
+            },
+            {
+                "name": "DR. RASHEED NASEEM"
+            },
+            {
+                "name": "DR. RASHID JAMEEL"
+            },
+            {
+                "name": "DR. RASHID NASEEM"
+            },
+            {
+                "name": "DR. RASHID JUMMA"
+            },
+            {
+                "name": "DR. SAAD SHAFQAT"
+            },
+            {
+                "name": "DR. SAJJAD JAMIL"
+            },
+            {
+                "name": "DR. SALMAN SHARIF"
+            },
+            {
+                "name": "DR. SARA KHAN"
+            },
+            {
+                "name": "DR. Aftab Ahmed"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Kitne doctors female hain?",
+            "Inki fees kitni hai?"
+        ],
+        "timestamp": "10:43 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "DR. FAISAL AHMED ne ke pass kitne visits hue hn",
+        "timestamp": "10:44 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "DR. FAISAL AHMED ki kitni calls hui ha",
+        "timestamp": "10:46 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "DR. FAISAL AHMED plan",
+        "timestamp": "10:51 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "DR. FAISAL AHMED plan",
+        "timestamp": "10:51 AM - Mar 24, 2026"
+    },
+    {
+        "role": "user",
+        "content": "DR. FAISAL AHMED plan",
+        "timestamp": "10:53 AM - Mar 24, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "I apologize for the result. It seems that the specific filter \"DR. FAISAL AHMED plan\" did not match any records in our database. This could be due to a variety of reasons, such as the name or plan not being listed exactly as you've entered it, or the data might not be available for that specific combination.\n\nUnfortunately, I couldn't find any similar alternative names in the database that might assist you. I recommend trying a different query or adjusting your search parameters to see if you can find the information you're looking for. If you need help with forming a new query, feel free to ask.",
+        "data": [],
+        "chart_data": null,
+        "follow_ups": [
+            "\"Try another name?\"",
+            "\"Check again?\""
+        ],
+        "timestamp": "10:54 AM - Mar 24, 2026"
+    }
+]

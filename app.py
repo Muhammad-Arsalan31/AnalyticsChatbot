@@ -24,11 +24,14 @@ client = openai.OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
 import decimal
 import json
 
-# Custom JSON encoder to handle PostgreSQL Decimal types
+import datetime
+# Custom JSON encoder to handle PostgreSQL Decimal types and Date/Time objects
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, decimal.Decimal):
             return float(obj)
+        elif isinstance(obj, (datetime.date, datetime.datetime, pd.Timestamp)):
+            return obj.isoformat()
         return super().default(obj)
 
 CACHE_FILE = "query_cache.json"
@@ -50,6 +53,22 @@ def smart_format_dataframe(df: pd.DataFrame):
     for col in df_numeric.columns:
         # SKIP the first column - it's our X-axis category (e.g., Brick Name, Product)
         if col == df_numeric.columns[0]:
+            continue
+            
+        # Prevent formatting date columns as raw comma-separated numbers
+        is_date_col = "date" in str(col).lower() or "time" in str(col).lower() or pd.api.types.is_datetime64_any_dtype(df_numeric[col])
+        if is_date_col:
+            try:
+                # If loaded from JSON cache, it might be an epoch int in ms
+                if df_numeric[col].dtype == 'int64' or df_numeric[col].dtype == 'float64':
+                    if df_numeric[col].max() > 1000000000000:
+                        df_display[col] = pd.to_datetime(df_numeric[col], unit='ms').dt.strftime('%Y-%m-%d %I:%M %p')
+                    else:
+                        df_display[col] = pd.to_datetime(df_numeric[col], unit='s').dt.strftime('%Y-%m-%d %I:%M %p')
+                else:
+                    df_display[col] = pd.to_datetime(df_numeric[col]).dt.strftime('%Y-%m-%d')
+            except:
+                pass
             continue
             
         # Try to convert to numeric, if it fails, it's a category
@@ -366,6 +385,9 @@ for idx, message in enumerate(st.session_state.messages):
         st.markdown(message["content"])
         if "timestamp" in message:
             st.caption(f"🕒 {message['timestamp']}")
+        if "sql" in message and message["sql"]:
+            with st.expander("🛠️ Show SQL Logic (Debug)"):
+                st.code(message["sql"], language="sql")
         if "data" in message:
             df_raw = pd.DataFrame(message["data"])
             df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
@@ -420,6 +442,8 @@ if prompt:
             sql_query = ""
             results = None
             is_cached = False
+            is_conversational = False
+            conversational_reply = ""
             
             if normalized_q in cache:
                 sql_query = cache[normalized_q]
@@ -462,6 +486,8 @@ if prompt:
                         f"3. If filter value may differ, ALWAYS use ILIKE '%value%'.\n"
                         f"4. If your previous query returned 0 rows, you MUST generate a simple query to inspect available values: SELECT DISTINCT <column_name> FROM <table> LIMIT 10;\n"
                         f"5. Never return constant values like 0 for 'brick_name'. Always select the actual column.\n"
+                        f"6. PostgreSQL Case Sensitivity: If a column name has capital letters (e.g., doctorId, eventType), you MUST enclose it in double quotes (e.g., \"doctorId\").\n"
+                        f"7. Subqueries: Never use '=' with a subquery like `WHERE id = (SELECT...)`. ALWAYS use `IN (SELECT...)` or a `JOIN` to avoid 'more than one row returned' errors.\n"
                         f"USER QUESTION: {prompt}"
                         f"{error_feedback}"
                         f"{exploration_feedback}\n\n"
@@ -601,7 +627,21 @@ if prompt:
                             
                             # 2. Identify numeric stats (Y-axis)
                             num_cols = df_numeric.select_dtypes(include=['number']).columns.tolist()
-                            y_cols = [c for c in num_cols if c != x_col]
+                            y_cols = []
+                            forbidden_exact = ['id', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month']
+                            for c in num_cols:
+                                c_lower = str(c).lower()
+                                if c == x_col:
+                                    continue
+                                # Block IDs and non-metric numbers
+                                if c_lower in forbidden_exact:
+                                    continue
+                                if c_lower.endswith('_id') or c_lower.endswith('id') and len(c_lower) > 4: # e.g. doctorId, managerId
+                                    if not c_lower.endswith('paid') and not c_lower.endswith('valid'):
+                                        continue
+                                if any(sub in c_lower for sub in ['_id', 'id_', 'mobile', 'phone']):
+                                    continue
+                                y_cols.append(c)
                             
                             # 3. Validation: X-axis must have valid categories (Not '0', NULL, or empty)
                             valid_rows = df_numeric.copy()
@@ -635,7 +675,7 @@ if prompt:
                 except:
                     follow_ups = []
 
-                st.session_state.messages.append({"role": "assistant", "content": final_answer, "data": df_numeric if not df.empty else df, "chart_data": chart_data, "follow_ups": follow_ups, "timestamp": current_time_ai})
+                st.session_state.messages.append({"role": "assistant", "content": final_answer, "sql": sql_query if not is_conversational else "", "data": df_numeric if not df.empty else df, "chart_data": chart_data, "follow_ups": follow_ups, "timestamp": current_time_ai})
                 # Auto-save
                 new_id = save_session(st.session_state.current_session, st.session_state.messages)
                 if st.session_state.current_session.startswith("New_Session_"):

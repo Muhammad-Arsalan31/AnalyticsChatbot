@@ -47,3 +47,16 @@ JOIN "specializatons" AS sp ON dr."id" = ANY(SELECT "B" FROM "_doctorsTospeciali
 JOIN "healthcentres" AS hc ON dr."id" = ANY(SELECT "A" FROM "_doctorsTohealthcentres" WHERE "B" = dr."id")
 JOIN "regions" AS r ON hc."region_id" = r."id";
 ```
+### Example 4: Counting Visits for a Specific Doctor (Handling subqueries and mixed case columns)
+```sql
+SELECT 
+  d."name",
+  COUNT(dp."id") AS "Doctor Visits"
+FROM "doctors" d
+JOIN "doctor_plan" dp ON dp."doctorId" = d."id"  -- Always quote camelCase columns like "doctorId"
+WHERE d."id" IN (
+    SELECT "id" FROM "doctors" WHERE "name" ILIKE '%faisal%' 
+) -- Always use IN instead of '=' for subqueries to prevent 'more than one row returned' errors.
+GROUP BY d."name"
+ORDER BY "Doctor Visits" DESC;
+```
