@@ -1,0 +1,1328 @@
+[
+    {
+        "role": "user",
+        "content": "hamare pass kitne managers ha",
+        "timestamp": "11:20 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hamare paas 59 managers hain. Yeh number hamari company ki management team ki strength ko darshata hai.",
+        "sql": "SELECT COUNT(id) AS \"number_of_managers\" \nFROM managers;",
+        "data": [
+            {
+                "number_of_managers": "59"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Kaun si management team?",
+            "Kitne teams hain company?"
+        ],
+        "timestamp": "11:21 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "inke naam kiya hn",
+        "timestamp": "11:22 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "saare managers ke naam batow",
+        "timestamp": "11:23 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Yeh rahay saare managers ke naam: WAQAS, HAIDER ALI, FARMAN ALI, QASIM KHAN, KAMRAN, ALI ASGHAR, NOMAN SABIR, SHAHID NAZIR, MAUZ, HASEEB HASSAN, S. FAHAD, FAHAD SATTAR, YASIR ALI, SALMAN, BABER HANIF, M. MOOSA, FAYYAZ, ARSALAN, BEHROZ, MOAZZAM, M. BASIT, WALEED, H. M. AHSAN, KAMRAN, FARHAN, ABU BAKAR, M. NOUMAN, HASEEB, BILAL, S.M. TAQI, OWAIS, SAMEER, FAISAL, VACANT, IBAD AHMED, OBAID, HASSAN, M. USMAN, MUSTAJAB, AHMED, AZAM, NASEER, HUZAIFA, M. JUNAID, ZAIN, SHAMEEL, HAMZA, SHAHRUKH, WASEEM, MH HAMZA, WAQAS, AWAIS, NAVEED, M. MUBASHIR, DANISH, ASAD, SHABAN, NOUMAN, aur Admin.",
+        "sql": "SELECT \"name\" \nFROM managers;",
+        "data": [
+            {
+                "name": "WAQAS"
+            },
+            {
+                "name": "HAIDER ALI"
+            },
+            {
+                "name": "FARMAN ALI"
+            },
+            {
+                "name": "QASIM KHAN"
+            },
+            {
+                "name": "KAMRAN"
+            },
+            {
+                "name": "ALI ASGHAR"
+            },
+            {
+                "name": "NOMAN SABIR"
+            },
+            {
+                "name": "SHAHID NAZIR"
+            },
+            {
+                "name": "MAUZ"
+            },
+            {
+                "name": "HASEEB HASSAN"
+            },
+            {
+                "name": "S. FAHAD"
+            },
+            {
+                "name": "FAHAD SATTAR"
+            },
+            {
+                "name": "YASIR ALI"
+            },
+            {
+                "name": "SALMAN"
+            },
+            {
+                "name": "BABER HANIF"
+            },
+            {
+                "name": "M. MOOSA"
+            },
+            {
+                "name": "FAYYAZ"
+            },
+            {
+                "name": "ARSALAN"
+            },
+            {
+                "name": "BEHROZ"
+            },
+            {
+                "name": "MOAZZAM"
+            },
+            {
+                "name": "M. BASIT"
+            },
+            {
+                "name": "WALEED"
+            },
+            {
+                "name": "H. M. AHSAN"
+            },
+            {
+                "name": "KAMRAN"
+            },
+            {
+                "name": "FARHAN"
+            },
+            {
+                "name": "ABU BAKAR"
+            },
+            {
+                "name": "M. NOUMAN"
+            },
+            {
+                "name": "HASEEB"
+            },
+            {
+                "name": "BILAL"
+            },
+            {
+                "name": "S.M. TAQI"
+            },
+            {
+                "name": "OWAIS"
+            },
+            {
+                "name": "SAMEER"
+            },
+            {
+                "name": "FAISAL"
+            },
+            {
+                "name": "VACANT"
+            },
+            {
+                "name": "IBAD AHMED"
+            },
+            {
+                "name": "OBAID"
+            },
+            {
+                "name": "HASSAN"
+            },
+            {
+                "name": "M. USMAN"
+            },
+            {
+                "name": "MUSTAJAB"
+            },
+            {
+                "name": "AHMED"
+            },
+            {
+                "name": "AZAM"
+            },
+            {
+                "name": "NASEER"
+            },
+            {
+                "name": "HUZAIFA"
+            },
+            {
+                "name": "M. JUNAID"
+            },
+            {
+                "name": "ZAIN"
+            },
+            {
+                "name": "SHAMEEL"
+            },
+            {
+                "name": "HAMZA"
+            },
+            {
+                "name": "SHAHRUKH"
+            },
+            {
+                "name": "WASEEM"
+            },
+            {
+                "name": "MH HAMZA"
+            },
+            {
+                "name": "WAQAS"
+            },
+            {
+                "name": "AWAIS"
+            },
+            {
+                "name": "NAVEED"
+            },
+            {
+                "name": "M. MUBASHIR"
+            },
+            {
+                "name": "DANISH"
+            },
+            {
+                "name": "ASAD"
+            },
+            {
+                "name": "SHABAN"
+            },
+            {
+                "name": "NOUMAN"
+            },
+            {
+                "name": "Admin"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "\"How many managers total?\"",
+            "\"Any duplicates listed?\""
+        ],
+        "timestamp": "11:23 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Farman ali managers ka data dikhow",
+        "timestamp": "11:24 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Farman Ali ka manager ID 3 hai aur yeh ek region manager hai, jiska company ID 1 hai.",
+        "sql": "SELECT * \nFROM managers \nWHERE name ILIKE '%Farman Ali%';",
+        "data": [
+            {
+                "id": "3",
+                "cmp_manager_id": 3.0,
+                "name": "FARMAN ALI",
+                "email": null,
+                "password": null,
+                "mobile": null,
+                "image": null,
+                "manager_type": "REGION",
+                "user_type": "MANAGER",
+                "created_at": "2023-05-04T11:24:28.059176+00:00",
+                "updated_at": "2023-05-04T11:24:28.059176+00:00",
+                "deleted_at": null,
+                "refresh_token": null,
+                "permissionsId": null,
+                "company_id": 1.0
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Kaun hai Farman Ali?",
+            "Kaunsa hai uska department?"
+        ],
+        "timestamp": "11:24 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "iske doctor planning batow",
+        "timestamp": "11:25 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "I couldn't find any information that matches your search query \"iske doctor planning batow\". It's possible that the specific filter or combination you used doesn't match exactly, or the data might not be available for this particular query. Unfortunately, I couldn't find any similar alternative names in the database either. Could you please try a different query or provide more context so I can assist you better?",
+        "sql": "SELECT \n  dp.\"doctorId\", \n  d.\"name\", \n  dp.\"date\", \n  dp.\"eventType\", \n  dp.\"description\", \n  dp.\"shift\", \n  dp.\"latitude\", \n  dp.\"longitude\", \n  dp.\"inHealthCentre\", \n  dp.\"distance_in_meters\", \n  dp.\"visited_date\", \n  dp.\"status\", \n  dp.\"approval\"\nFROM \n  \"doctor_plan\" dp\nJOIN \n  \"doctors\" d ON dp.\"doctorId\" = d.\"id\"\nWHERE \n  dp.\"managerId\" IN (\n    SELECT \n      \"id\" \n    FROM \n      \"managers\" \n    WHERE \n      \"name\" ILIKE '%Farman Ali%'\n  );",
+        "data": [],
+        "chart_data": null,
+        "follow_ups": [
+            "What data is available?",
+            "Try other filters?"
+        ],
+        "timestamp": "11:26 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "farman ali ki doctor planning kitni ha",
+        "timestamp": "11:27 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Farman Ali ki doctor planning 0 hai, yeh baat spa\u1e63\u1e6d hoti hai ki uske paas abhi tak koi doctor planning assign nahi ki gayi hai.",
+        "sql": "SELECT \n  COUNT(dp.\"id\") AS \"Total Doctor Planning\"\nFROM \n  \"doctor_plan\" dp\nWHERE \n  dp.\"managerId\" IN (\n    SELECT \n      \"id\" \n    FROM \n      \"managers\" \n    WHERE \n      \"name\" ILIKE '%Farman Ali%'\n  );",
+        "data": [
+            {
+                "Total Doctor Planning": "0"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Kab tak assign hogi?",
+            "Kyun nahi assign hui?"
+        ],
+        "timestamp": "11:27 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "okay ye kis kis manager ki doctor planning planned ha",
+        "timestamp": "11:28 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "WAQAS aur HAIDER ALI ke paas sabse zyada doctor planning hai, jismein WAQAS ke paas 170 aur HAIDER ALI ke paas 140 doctor planning hai. Ye data is baat ka indication karta hai ki in dono managers ko sabse zyada doctor planning assignments di gayi hai.",
+        "sql": "SELECT \n  m.\"name\", \n  COUNT(dp.\"id\") AS \"Doctor Planning Count\"\nFROM \"managers\" AS m\nJOIN \"doctor_plan\" AS dp ON m.\"id\" = dp.\"managerId\"\nGROUP BY m.\"name\"\nORDER BY \"Doctor Planning Count\" DESC;",
+        "data": [
+            {
+                "name": "WAQAS",
+                "Doctor Planning Count": 170.0
+            },
+            {
+                "name": "HAIDER ALI",
+                "Doctor Planning Count": 140.0
+            }
+        ],
+        "chart_data": [
+            "name",
+            [
+                "Doctor Planning Count"
+            ]
+        ],
+        "follow_ups": [
+            "Kaun ka plan better?",
+            "Kyun WAQAS ko zyada?"
+        ],
+        "timestamp": "11:29 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Kyun WAQAS ko zyada?",
+        "timestamp": "11:29 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "WAQAS ko zyada doctor planning assignments milne ki wajah shayad yeh hai ki unke paas experience aur expertise zyada hai, jiske karan unhein adhik zimmedariyan di jaati hain. Iske ilawa, yeh bhi ho sakta hai ki WAQAS ke paas zyada resources aur support available ho, jiske karan woh adhik doctor planning successfully complete kar paate hain.",
+        "sql": "SELECT \n  m.\"name\", \n  COUNT(dp.\"id\") AS \"Doctor Planning Count\"\nFROM \"managers\" AS m\nJOIN \"doctor_plan\" AS dp ON m.\"id\" = dp.\"managerId\"\nWHERE m.\"name\" ILIKE '%WAQAS%'\nGROUP BY m.\"name\"\nORDER BY \"Doctor Planning Count\" DESC;",
+        "data": [
+            {
+                "name": "WAQAS",
+                "Doctor Planning Count": 170.0
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "\"Expertise kitna mahatvapoorna hai?\"",
+            "\"Resources kya hain?\""
+        ],
+        "timestamp": "11:29 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "thek ha haider ali ke planned visits batow or kitne complete hogy wo bhi batow",
+        "timestamp": "11:41 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "HAIDER ALI ke paas 140 planned visits hain, lekin unhone sirf 25 visits complete ki hain, jo keh unki completion rate kaafi kam hai. Isse pata chalta hai ke HAIDER ALI ko apni visits complete karne mein kuch challenges ka samna hai.",
+        "sql": "SELECT \n  m.\"name\", \n  COUNT(dp.\"id\") AS \"Planned Visits\", \n  SUM(CASE WHEN dp.\"status\" = 'VISITED' THEN 1 ELSE 0 END) AS \"Completed Visits\"\nFROM \"managers\" AS m\nJOIN \"doctor_plan\" AS dp ON m.\"id\" = dp.\"managerId\"\nWHERE m.\"name\" ILIKE '%HAIDER ALI%'\nGROUP BY m.\"name\"",
+        "data": [
+            {
+                "name": "HAIDER ALI",
+                "Planned Visits": 140.0,
+                "Completed Visits": 25.0
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "\"Challenges kaun si hain?\"",
+            "\"Kyun completion rate kam?\""
+        ],
+        "timestamp": "11:41 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "okay unho ne kahan visits complete kiye hn or kahn pr rehte hn visits",
+        "timestamp": "11:42 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "HAIDER ALI ne apni visits completion ki rate kaafi kam dekhai deti hai, sirf 25 visits complete huwi hain. Unho ne sab se zyada visits Mamji Hospital (15 visits) aur DOSANI CLINIC (10 visits) me complete ki hain.",
+        "sql": "SELECT \n  dp.\"healthCentreId\", \n  hc.\"name\" AS \"Health Centre\",\n  COUNT(dp.\"id\") AS \"Completed Visits\"\nFROM \"doctor_plan\" AS dp\nJOIN \"healthcentres\" AS hc ON dp.\"healthCentreId\" = hc.\"id\"\nWHERE dp.\"status\" = 'VISITED'\nGROUP BY dp.\"healthCentreId\", hc.\"name\"\nORDER BY \"Completed Visits\" DESC;",
+        "data": [
+            {
+                "healthCentreId": "296",
+                "Health Centre": "Mamji Hospital",
+                "Completed Visits": 15.0
+            },
+            {
+                "healthCentreId": "645",
+                "Health Centre": "DOSANI CLINIC.",
+                "Completed Visits": 10.0
+            },
+            {
+                "healthCentreId": "284",
+                "Health Centre": "Liaquat National Hospital (LNH)",
+                "Completed Visits": 7.0
+            },
+            {
+                "healthCentreId": "758",
+                "Health Centre": "AMIR ALI SOHANI CLINIC",
+                "Completed Visits": 7.0
+            },
+            {
+                "healthCentreId": "745",
+                "Health Centre": "MEHBOOB POLY CLINIC",
+                "Completed Visits": 7.0
+            },
+            {
+                "healthCentreId": "94",
+                "Health Centre": "Dabeer Clinic",
+                "Completed Visits": 6.0
+            },
+            {
+                "healthCentreId": "39",
+                "Health Centre": "Al Syed Psychiatric Institute",
+                "Completed Visits": 6.0
+            },
+            {
+                "healthCentreId": "342",
+                "Health Centre": "Neuro Mind Hospital",
+                "Completed Visits": 5.0
+            },
+            {
+                "healthCentreId": "807",
+                "Health Centre": "KARACHI CENTRAL HOSPITAL",
+                "Completed Visits": 5.0
+            },
+            {
+                "healthCentreId": "746",
+                "Health Centre": "HABIB MEDICAL CENTER",
+                "Completed Visits": 5.0
+            },
+            {
+                "healthCentreId": "59",
+                "Health Centre": "Ashfaq Memorial Hospital",
+                "Completed Visits": 5.0
+            },
+            {
+                "healthCentreId": "415",
+                "Health Centre": "Suriya Clinic",
+                "Completed Visits": 4.0
+            },
+            {
+                "healthCentreId": "834",
+                "Health Centre": "HASEEB CLINIC, REHMAN MEDICAL CENTRE",
+                "Completed Visits": 2.0
+            },
+            {
+                "healthCentreId": "171",
+                "Health Centre": "Dr. Hanif Memon Clinic",
+                "Completed Visits": 1.0
+            },
+            {
+                "healthCentreId": "396",
+                "Health Centre": "Shifa Sugar Clinic",
+                "Completed Visits": 1.0
+            }
+        ],
+        "chart_data": [
+            "healthCentreId",
+            [
+                "Completed Visits"
+            ]
+        ],
+        "follow_ups": [
+            "Aur visits kab hui?",
+            "Kaafi kam kyun hai?"
+        ],
+        "timestamp": "11:42 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Aur visits kab hui?",
+        "timestamp": "11:44 AM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "HAIDER ALI ki visits ki detail dekhi jaye to unho ne 25 visits complete ki hain jo ke different dates par hui hain, jese ke 30 December 2025, 28 December 2025, 26 December 2025, aur iss tarah se. Unho ne sab se zyada visits Mamji Hospital aur DOSANI CLINIC me complete ki hain.",
+        "sql": "SELECT \n  dp.\"date\", \n  dp.\"eventType\", \n  d.\"name\" AS \"Doctor Name\", \n  hc.\"name\" AS \"Health Centre\"\nFROM \"doctor_plan\" AS dp\nJOIN \"doctors\" AS d ON dp.\"doctorId\" = d.\"id\"\nJOIN \"healthcentres\" AS hc ON dp.\"healthCentreId\" = hc.\"id\"\nWHERE d.\"name\" IN (\n  SELECT d.\"name\" \n  FROM \"doctors\" AS d \n  JOIN \"doctor_plan\" AS dp ON d.\"id\" = dp.\"doctorId\" \n  JOIN \"managers\" AS m ON dp.\"managerId\" = m.\"id\" \n  WHERE m.\"name\" ILIKE '%HAIDER ALI%'\n)\nORDER BY dp.\"date\" DESC;",
+        "data": [
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Contact Point",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Contact Point",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-30",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Contact Point",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-28",
+                "eventType": "Contact Point",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Contact Point",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Contact Point",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Contact Point",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-26",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-24",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Contact Point",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Contact Point",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Contact Point",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-22",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Contact Point",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-18",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Contact Point",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Contact Point",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-14",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Contact Point",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Contact Point",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Contact Point",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Contact Point",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-07",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Contact Point",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-04",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "INAM E KHUDA",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. HANIF MEMON",
+                "Health Centre": "Dr. Hanif Memon Clinic"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAAD",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Contact Point",
+                "Doctor Name": "DR. INAM RASOOL",
+                "Health Centre": "Modern Hospital"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SHAHID KARIM",
+                "Health Centre": "DR. ARSHAD Clinic"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "AJMAL KAZMI",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SAIRA ABBAS",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "DR. Aftab Ahmed",
+                "Health Centre": "Ashfaq Memorial Hospital"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "Dr. ABC",
+                "Health Centre": "Liaquat National Hospital (LNH)"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "WAHEED KHAN",
+                "Health Centre": "Shifa Sugar Clinic"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "FAJAR BAQER",
+                "Health Centre": "Maham Clinic Paradise Bakery"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Contact Point",
+                "Doctor Name": "NABILA DANISH",
+                "Health Centre": "Al Syed Psychiatric Institute"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Face to Face Call",
+                "Doctor Name": "SOHAIL AHMED",
+                "Health Centre": "Patel Hospital"
+            },
+            {
+                "date": "2025-12-01",
+                "eventType": "Contact Point",
+                "Doctor Name": "MUZAFFAR UD DIN",
+                "Health Centre": "Neuro Mind Hospital"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Kitne visits kab hui?",
+            "Kaun sa hospital zyada?"
+        ],
+        "timestamp": "11:44 AM - Mar 25, 2026"
+    }
+]

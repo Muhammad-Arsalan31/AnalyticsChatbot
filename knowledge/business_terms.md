@@ -14,3 +14,8 @@
   - **ZM (Zone)**: Stored in the `zones` table (Example name: `ZM - KHI - 1`)
   - **TM (Territory/Area)**: Stored in the `areas` table (Example name: `TM - KHI - 1`)
   Always use `ILIKE` when searching these acronyms as users may not type exact dashes.
+- **Date Columns in Sales**: When querying for sales by date (month/year) in the `master_sale` table:
+  - Use `invoice_date` for the full date.
+  - Use `month_number` (1-12) or `month_name` (e.g., 'December') for months.
+  - Use `year_number` (e.g., 2025) for years.
+  - **CRITICAL**: The column `sale_date` does NOT exist in `master_sale`. Always use `invoice_date`.

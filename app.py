@@ -237,7 +237,8 @@ def get_rag_context(user_query: str):
     
     # Add explicit instructions for complex joins and case-insensitive matching
     context += "\n--- MASTER SQL RULES (MANDATORY) ---\n"
-    context += "1. USE 'master_sale' FOR INTERNAL METRICS: It has product_name, product_quantity, total_amount, region_name, zone_name.\n"
+    context += "1. USE 'master_sale' FOR INTERNAL METRICS: It has product_name, product_quantity, total_amount, region_name, zone_name, area_name, invoice_date, month_number, year_number, month_name.\n"
+    context += "   - NOTE: 'sale_date' does NOT exist. Use 'invoice_date' for the full date.\n"
     context += "2. JOINING BRICK NAMES: 'master_sale' does NOT have brick_name. For brick-level internal sales, use this join:\n"
     context += "   SELECT ib.name, SUM(ms.product_quantity) FROM master_sale ms JOIN customer_details cd ON ms.customer_id = cd.customer_id JOIN ims_brick ib ON cd.ims_brick_id = ib.id GROUP BY ib.name\n"
     context += "3. NO CARTESIAN PRODUCTS: Never join 'ims_sale' and 'invoice_details' (or 'master_sale') in a single table join. It will multiply the numbers incorrectly.\n"
@@ -385,12 +386,29 @@ for idx, message in enumerate(st.session_state.messages):
         st.markdown(message["content"])
         if "timestamp" in message:
             st.caption(f"🕒 {message['timestamp']}")
-        if "sql" in message and message["sql"]:
-            with st.expander("🛠️ Show SQL Logic (Debug)"):
-                st.code(message["sql"], language="sql")
+        # --- Compact Header for SQL & Download ---
+        header_cols = st.columns([5, 1])
+        
+        with header_cols[0]:
+            if "sql" in message and message["sql"]:
+                with st.expander("🛠️ Show SQL Logic (Debug)"):
+                    st.code(message["sql"], language="sql")
+        
         if "data" in message:
             df_raw = pd.DataFrame(message["data"])
             df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
+            
+            # Place Download Button in the right column if data exists
+            with header_cols[1]:
+                csv = df_display_hist.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 CSV",
+                    data=csv,
+                    file_name=f"data_export_{idx}.csv",
+                    mime="text/csv",
+                    key=f"dl_{idx}"
+                )
+
             # Table use formatted
             st.dataframe(df_display_hist, use_container_width=True)
             
@@ -465,7 +483,10 @@ if prompt:
                         role_name = "User" if msg["role"] == "user" else "Assistant"
                         content_txt = str(msg.get("content", ""))
                         chat_context += f"{role_name}: {content_txt[:500]}\n"
+                        if role_name == "Assistant" and msg.get("sql"):
+                            chat_context += f"Executed SQL: {msg['sql']}\n"
                 
+                current_full_date = pd.Timestamp.now().strftime("%A, %b %d, %Y")
                 max_retries = 5
                 current_attempt = 0
                 last_error = ""
@@ -477,6 +498,7 @@ if prompt:
                     current_attempt += 1
                     error_feedback = f"\n\nLAST ERROR WAS: {last_error}" if last_error else ""
                     gen_prompt = (
+                        f"CURRENT DATE/TIME: {current_full_date}\n"
                         f"{chat_context}\n"
                         f"KNOWLEDGE BASE & BUSINESS LOGIC:\n{rag_context}\n\n"
                         f"DATABASE SCHEMA:\n{schema}\n\n"
@@ -488,6 +510,7 @@ if prompt:
                         f"5. Never return constant values like 0 for 'brick_name'. Always select the actual column.\n"
                         f"6. PostgreSQL Case Sensitivity: If a column name has capital letters (e.g., doctorId, eventType), you MUST enclose it in double quotes (e.g., \"doctorId\").\n"
                         f"7. Subqueries: Never use '=' with a subquery like `WHERE id = (SELECT...)`. ALWAYS use `IN (SELECT...)` or a `JOIN` to avoid 'more than one row returned' errors.\n"
+                        f"8. Follow-Up Filter Retention: If the user asks a continuation question (e.g., 'what about completed visits?', 'now show me for this year'), you MUST RE-APPLY the exact same WHERE filters (like manager name, territory, doctor) from the previous 'Executed SQL', unless the user explicitly tells you to look at someone else.\n"
                         f"USER QUESTION: {prompt}"
                         f"{error_feedback}"
                         f"{exploration_feedback}\n\n"
@@ -498,10 +521,11 @@ if prompt:
                     )
                     
                     # ATTEMPT GENERATION
+                    sys_prompt = "You are a professional Pharma Database Agent. If replying in Roman Urdu, STRICTLY use Pakistani Roman Urdu (avoid Hindi words like kripya, pradarshan, uttam, charcha). Use professional English where needed."
                     try:
                         response = client.chat.completions.create(
                             model=LLM_MODEL,
-                            messages=[{"role": "system", "content": "You are a professional database agent."}, {"role": "user", "content": gen_prompt}],
+                            messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": gen_prompt}],
                             timeout=30.0
                         )
                     except Exception as api_err:
@@ -589,7 +613,7 @@ if prompt:
                         f"IMPORTANT: {discovery_context}\n"
                         f"Do NOT make up or hallucinate placeholder options. If no options are provided, just tell the user to try a different query."
                     )
-                    empty_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": empty_prompt}], timeout=30.0)
+                    empty_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": empty_prompt}], timeout=30.0)
                     final_answer = empty_res.choices[0].message.content
                 else:
                     # IF CACHED: Skip AI summary for 1-second performance
@@ -600,9 +624,10 @@ if prompt:
                             f"{chat_context}\n"
                             f"User asked: {prompt}\nDB Result: {results}\n\n"
                             "Task: If the user is asking a conversational question, about a chart, or about your reasoning/SQL logic, answer them directly and explain your reasoning.\n"
-                            "Otherwise, if it's a standard data query, provide a concise (1-2 sentence) business summary of the numeric results."
+                            "Otherwise, if it's a standard data query, provide a concise (1-2 sentence) business summary of the numeric results.\n"
+                            "Language Check: If analyzing in Roman Urdu, ensure it is Pakistani Urdu (Never use Hindi terms like kripya, charcha, vishesh)."
                         )
-                        summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": sum_prompt}], timeout=30.0)
+                        summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": sum_prompt}], timeout=30.0)
                         final_answer = summary_res.choices[0].message.content
                 
                 current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")

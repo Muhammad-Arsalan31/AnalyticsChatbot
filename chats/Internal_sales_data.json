@@ -1,0 +1,407 @@
+[
+    {
+        "role": "user",
+        "content": "F.B.AREA BLOCK-14 ki internal sales batow december 2025 ki",
+        "timestamp": "11:51 AM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "F.B.AREA BLOCK-14 ki internal sales batow december 2025 ki",
+        "timestamp": "12:10 PM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "F.B.AREA BLOCK-14 ki internal sales December 2025 ki data available nahi hai, is liye total revenue aur total quantity bhi null hai.",
+        "sql": "SELECT \n  SUM(product_quantity) AS total_quantity, \n  SUM(total_amount) AS total_revenue\nFROM master_sale\nWHERE area_name ILIKE '%F.B.AREA BLOCK-14%'\n  AND month_name = 'December'\n  AND year_number = 2025;",
+        "data": [
+            {
+                "total_quantity": "None",
+                "total_revenue": null
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "When will data arrive?",
+            "Why is data missing?"
+        ],
+        "timestamp": "12:11 PM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "okay hamare pass jis brick ya area etc ki sales ha tu wo dikhow",
+        "timestamp": "12:12 PM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Hamare pass F.B.AREA BLOCK-14 ki internal sales December 2025 ki data available nahi thi, lekin humare pass total sales ki data hai jo 512476 hai.",
+        "sql": "SELECT \n  ib.name, \n  SUM(ms.product_quantity) AS \"Total Sales\"\nFROM master_sale ms \nJOIN customer_details cd ON ms.customer_id = cd.customer_id \nJOIN ims_brick ib ON cd.ims_brick_id = ib.id \nGROUP BY ib.name\nORDER BY \"Total Sales\" DESC;",
+        "data": [
+            {
+                "name": "F.B.AREA BLOCK-3",
+                "Total Sales": 783091.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Total Sales": 585494.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-14",
+                "Total Sales": 512476.0
+            },
+            {
+                "name": "P.I.B. COLONY",
+                "Total Sales": 507616.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-13",
+                "Total Sales": 495923.0
+            },
+            {
+                "name": "A.H.ISPHANI ROAD",
+                "Total Sales": 492454.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Total Sales": 450985.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-2",
+                "Total Sales": 444031.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Total Sales": 437941.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-20",
+                "Total Sales": 419869.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-17",
+                "Total Sales": 408216.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-8",
+                "Total Sales": 320960.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-7",
+                "Total Sales": 310114.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-16",
+                "Total Sales": 303236.0
+            },
+            {
+                "name": "GULBAHAR RIZVIA SOCIETY",
+                "Total Sales": 302976.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-10A",
+                "Total Sales": 258452.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-B",
+                "Total Sales": 257132.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-10",
+                "Total Sales": 243894.0
+            },
+            {
+                "name": "ASHFAQ MEMORIAL HOSP. - GULSHA",
+                "Total Sales": 233998.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-19",
+                "Total Sales": 226794.0
+            },
+            {
+                "name": "MOOSA COLONY",
+                "Total Sales": 224196.0
+            },
+            {
+                "name": "LIAQUATABAD C-AREA",
+                "Total Sales": 208013.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-16",
+                "Total Sales": 192379.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-11",
+                "Total Sales": 185202.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-9",
+                "Total Sales": 177820.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-4",
+                "Total Sales": 162950.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-4",
+                "Total Sales": 155173.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-A",
+                "Total Sales": 152708.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-18",
+                "Total Sales": 138612.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-C",
+                "Total Sales": 138115.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-10",
+                "Total Sales": 134352.0
+            },
+            {
+                "name": "MARTIN QUARTER",
+                "Total Sales": 130510.0
+            },
+            {
+                "name": "SOHRAB GOTH",
+                "Total Sales": 128510.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-7",
+                "Total Sales": 127404.0
+            },
+            {
+                "name": "JAMSHED ROAD",
+                "Total Sales": 124306.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-2",
+                "Total Sales": 123318.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-15",
+                "Total Sales": 121310.0
+            },
+            {
+                "name": "NADEEM MEDICAL CENTRE - GULSHA",
+                "Total Sales": 117282.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-3",
+                "Total Sales": 112393.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-D-2",
+                "Total Sales": 105688.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-4-A",
+                "Total Sales": 94479.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-D-1",
+                "Total Sales": 94374.0
+            },
+            {
+                "name": "GHARIBABAD",
+                "Total Sales": 92424.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-6",
+                "Total Sales": 88250.0
+            },
+            {
+                "name": "MEMON MEDICAL COMPLEX - F.B.AR",
+                "Total Sales": 85612.0
+            },
+            {
+                "name": "FATIMA JINNAH COLONY",
+                "Total Sales": 85189.0
+            },
+            {
+                "name": "LIAQUAT NATIONAL HOSPITAL - ST",
+                "Total Sales": 80012.0
+            },
+            {
+                "name": "SINDH GOVT. HOSPITAL - LIAQUTA-VICINITY",
+                "Total Sales": 76622.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-21",
+                "Total Sales": 76568.0
+            },
+            {
+                "name": "F.C.AREA",
+                "Total Sales": 75220.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-12",
+                "Total Sales": 74154.0
+            },
+            {
+                "name": "GULBAHAR",
+                "Total Sales": 72993.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-1",
+                "Total Sales": 72375.0
+            },
+            {
+                "name": "NEW TOWN",
+                "Total Sales": 64848.0
+            },
+            {
+                "name": "UNIVERSITY ROAD",
+                "Total Sales": 61264.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-9",
+                "Total Sales": 60636.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-5",
+                "Total Sales": 58248.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-22",
+                "Total Sales": 56843.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-1",
+                "Total Sales": 53011.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-12",
+                "Total Sales": 53006.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-1",
+                "Total Sales": 51562.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-3",
+                "Total Sales": 37546.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-4",
+                "Total Sales": 35873.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-D-3",
+                "Total Sales": 35036.0
+            },
+            {
+                "name": "KDA SCHEME-1",
+                "Total Sales": 31542.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-7",
+                "Total Sales": 29857.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-5",
+                "Total Sales": 29534.0
+            },
+            {
+                "name": "JEHANGIR ROAD",
+                "Total Sales": 26567.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-14",
+                "Total Sales": 25965.0
+            },
+            {
+                "name": "LIAQUATABAD B-AREA",
+                "Total Sales": 25654.0
+            },
+            {
+                "name": "F.B.AREA BLOCK-2",
+                "Total Sales": 16644.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-D",
+                "Total Sales": 15111.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-10",
+                "Total Sales": 12929.0
+            },
+            {
+                "name": "USMAN MEMORIAL HOSPITAL - F.B.",
+                "Total Sales": 10480.0
+            },
+            {
+                "name": "GULSHAN-E-IQBAL BLOCK-13-G",
+                "Total Sales": 9924.0
+            },
+            {
+                "name": "LIAQUATABAD BLOCK-8",
+                "Total Sales": 9139.0
+            }
+        ],
+        "chart_data": [
+            "name",
+            [
+                "Total Sales"
+            ]
+        ],
+        "follow_ups": [
+            "December ki data kab?",
+            "Total sales ka source?"
+        ],
+        "timestamp": "12:13 PM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "F.B.AREA BLOCK-3 ka total data show kro",
+        "timestamp": "12:16 PM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "F.B.AREA BLOCK-3 ka total data show kro",
+        "timestamp": "12:17 PM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "F.B.AREA BLOCK-3 ki total sales quantity 783091 units hai aur total revenue 226978565 rupees hai.",
+        "sql": "SELECT \n  ib.name, \n  SUM(ms.product_quantity) AS total_quantity, \n  SUM(ms.total_amount) AS total_revenue\nFROM master_sale ms \nJOIN customer_details cd ON ms.customer_id = cd.customer_id \nJOIN ims_brick ib ON cd.ims_brick_id = ib.id \nWHERE ib.name ILIKE '%F.B.AREA BLOCK-3%'\nGROUP BY ib.name\nORDER BY total_revenue DESC;",
+        "data": [
+            {
+                "name": "F.B.AREA BLOCK-3",
+                "total_quantity": 783091.0,
+                "total_revenue": 226978565.0
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Average price kya hai?",
+            "Sales period kaunsa hai?"
+        ],
+        "timestamp": "12:18 PM - Mar 25, 2026"
+    },
+    {
+        "role": "user",
+        "content": "isko ims market sales sa compare kro",
+        "timestamp": "12:19 PM - Mar 25, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "F.B.AREA BLOCK-3 ki internal sales 783091 units hai, jo IMS market sales 2459629 units ke muqable mein kam hai, yeh difference 1675538 units ki hai.",
+        "sql": "WITH Internal AS (\n  SELECT ib.name, SUM(ms.product_quantity) as qty \n  FROM master_sale ms \n  JOIN customer_details cd ON ms.customer_id = cd.customer_id \n  JOIN ims_brick ib ON cd.ims_brick_id = ib.id \n  WHERE ib.name ILIKE '%F.B.AREA BLOCK-3%' \n  GROUP BY 1\n),\nMarket AS (\n  SELECT ib.name, SUM(s.unit) as qty \n  FROM ims_sale s \n  JOIN ims_brick ib ON s.\"brickId\" = ib.id \n  WHERE ib.name ILIKE '%F.B.AREA BLOCK-3%' \n  GROUP BY 1\n)\nSELECT \n  COALESCE(i.name, m.name) AS \"Brick Name\", \n  COALESCE(i.qty, 0) AS \"Internal Units\", \n  COALESCE(m.qty, 0) AS \"IMS Market Units\"\nFROM Internal i \nFULL OUTER JOIN Market m ON i.name = m.name\nORDER BY \"Internal Units\" DESC;",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Internal Units": 783091.0,
+                "IMS Market Units": 2459629.0
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Kaunsi product kam bechi?",
+            "Kyun sales kam hai?"
+        ],
+        "timestamp": "12:20 PM - Mar 25, 2026"
+    }
+]

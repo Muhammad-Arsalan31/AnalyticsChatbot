@@ -59,4 +59,17 @@ WHERE d."id" IN (
 ) -- Always use IN instead of '=' for subqueries to prevent 'more than one row returned' errors.
 GROUP BY d."name"
 ORDER BY "Doctor Visits" DESC;
+### Example 5: Monthly Sales for a Specific Area Brick
+```sql
+SELECT 
+  product_name, 
+  SUM(product_quantity) AS total_qty, 
+  SUM(total_amount) AS total_revenue
+FROM master_sale
+WHERE area_name ILIKE '%F.B.AREA BLOCK-14%'
+  AND EXTRACT(MONTH FROM invoice_date) = 12
+  AND EXTRACT(YEAR FROM invoice_date) = 2025
+GROUP BY product_name
+ORDER BY total_revenue DESC;
 ```
+**CRITICAL NOTE:** Database `master_sale` uses `invoice_date`. The column `sale_date` does NOT exist.
