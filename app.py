@@ -72,15 +72,14 @@ def smart_format_dataframe(df: pd.DataFrame):
             continue
             
         # Try to convert to numeric, if it fails, it's a category
-        tmp = pd.to_numeric(df_numeric[col], errors='coerce')
-        if tmp.notnull().any():
-            df_numeric[col] = tmp.fillna(0).astype(float)
-            num_cols.append(col)
+        df_numeric[col] = pd.to_numeric(df_numeric[col], errors='coerce').fillna(0).astype(float)
+        num_cols.append(col)
 
     # 🔹 Apply formatting to display dataframe for numeric columns only
     for col in num_cols:
-        # Detect integer-like vs float
-        if (df_numeric[col].dropna() % 1 == 0).all():
+        # Detect large float vs integer
+        is_integer = (df_numeric[col].dropna() % 1 == 0).all()
+        if is_integer:
             df_display[col] = df_numeric[col].apply(
                 lambda x: f"{int(x):,}" if pd.notnull(x) else ""
             )
@@ -89,8 +88,11 @@ def smart_format_dataframe(df: pd.DataFrame):
                 lambda x: f"{x:,.2f}" if pd.notnull(x) else ""
             )
 
-    # Force the first column (Category) to be string to ensure Plotly treats it correctly
-    df_numeric[df_numeric.columns[0]] = df_numeric[df_numeric.columns[0]].astype(str)
+    # Force the first column (Category) to be string ONLY if it's not a numeric-like time axis
+    first_col = df_numeric.columns[0]
+    is_time_series_col = any(k in first_col.lower() for k in ["month", "year", "date", "day", "week"])
+    if not is_time_series_col:
+        df_numeric[first_col] = df_numeric[first_col].astype(str)
 
     return df_numeric, df_display
 
@@ -121,9 +123,16 @@ def plot_smart_chart(df: pd.DataFrame, x_col: str, y_cols: list, title: str, key
             fig.add_trace(go.Bar(x=df[x_col], y=df[p_col], name=p_col, marker_color='#636EFA'), secondary_y=False)
             fig.add_trace(go.Scatter(x=df[x_col], y=df[s_col], name=s_col, marker_color='#EF553B', mode='lines+markers'), secondary_y=True)
             
+            is_time_series = any(k in x_col.lower() for k in ["month", "year", "date", "day", "week"])
+            
+            # If time series, let Plotly handle numeric/linear sorting. Otherwise use categories.
+            xaxis_config = {'type': 'category', 'categoryorder': 'total descending'}
+            if is_time_series:
+                xaxis_config = {'type': None} # Auto-detect (linear sorting for numbers)
+
             fig.update_layout(
                 title=title, template="plotly_dark", hovermode="x unified",
-                xaxis={'type':'category', 'categoryorder':'total descending'},
+                xaxis=xaxis_config,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
             fig.update_yaxes(title_text=p_col, secondary_y=False)
@@ -132,8 +141,13 @@ def plot_smart_chart(df: pd.DataFrame, x_col: str, y_cols: list, title: str, key
             return
 
     # Standard Grouped Bar
+    is_time_series = any(k in x_col.lower() for k in ["month", "year", "date", "day", "week"])
+    xaxis_config = {'type': 'category', 'categoryorder': 'total descending'}
+    if is_time_series:
+        xaxis_config = {'type': None}
+
     fig = px.bar(df, x=x_col, y=y_cols, barmode='group', template="plotly_dark", title=title)
-    fig.update_layout(xaxis={'type':'category', 'categoryorder':'total descending'})
+    fig.update_layout(xaxis=xaxis_config)
     st.plotly_chart(fig, use_container_width=True, key=key)
 
 def load_query_cache():
@@ -412,8 +426,23 @@ for idx, message in enumerate(st.session_state.messages):
             # Table use formatted
             st.dataframe(df_display_hist, use_container_width=True)
             
-            # --- Historical Charts ---
-            if message.get("chart_data") is not None:
+            # --- Historical Charts (Support for Split Charts + Single Plots) ---
+            split_meta = message.get("split_charts_metadata")
+            if split_meta:
+                group_col = split_meta["group_col"]
+                x_axis_col = split_meta["x_axis_col"]
+                y_metrics = split_meta["y_metrics"]
+                unique_cats = df_numeric_hist[group_col].unique()
+                for i, cat_val in enumerate(unique_cats[:5]):
+                    subset = df_numeric_hist[df_numeric_hist[group_col] == cat_val].copy()
+                    plot_smart_chart(
+                        subset, 
+                        x_axis_col, 
+                        y_metrics, 
+                        f"📊 {cat_val}: {', '.join(y_metrics)}", 
+                        f"chart_hist_{idx}_{i}"
+                    )
+            elif message.get("chart_data") is not None:
                 x_col, y_cols = message["chart_data"]
                 # Filter to ensure Y columns exist and are numeric
                 y_cols_valid = [c for c in y_cols if c in df_numeric_hist.columns]
@@ -508,16 +537,21 @@ if prompt:
                         f"3. If filter value may differ, ALWAYS use ILIKE '%value%'.\n"
                         f"4. If your previous query returned 0 rows, you MUST generate a simple query to inspect available values: SELECT DISTINCT <column_name> FROM <table> LIMIT 10;\n"
                         f"5. Never return constant values like 0 for 'brick_name'. Always select the actual column.\n"
-                        f"6. PostgreSQL Case Sensitivity: If a column name has capital letters (e.g., doctorId, eventType), you MUST enclose it in double quotes (e.g., \"doctorId\").\n"
+                        f"6. PostgreSQL Case Sensitivity (CRITICAL): If a column name has capital letters (ALWAYS true for `doctor_plan` table: \"doctorId\", \"managerId\", \"healthCentreId\", \"eventType\", \"inHealthCentre\"), you MUST enclose it in DOUBLE QUOTES. e.g. SELECT \"managerId\" FROM doctor_plan.\n"
                         f"7. Subqueries: Never use '=' with a subquery like `WHERE id = (SELECT...)`. ALWAYS use `IN (SELECT...)` or a `JOIN` to avoid 'more than one row returned' errors.\n"
                         f"8. Follow-Up Filter Retention: If the user asks a continuation question (e.g., 'what about completed visits?', 'now show me for this year'), you MUST RE-APPLY the exact same WHERE filters (like manager name, territory, doctor) from the previous 'Executed SQL', unless the user explicitly tells you to look at someone else.\n"
+                        f"9. WHAT-IF ANALYSIS (SIMULATION): If the user asks a 'What-If' question (e.g., 'If I double visits, how will sales change?'), do NOT say you can't predict. Instead, generate a ```sql``` query to fetch the last 12 months of 'master_sale' (revenue) and 'doctor_plan' (visits) for that context. Then, in the summary, calculate the simple growth ratio and provide a hypothetical business estimate.\n"
+                        f"10. TABLE MAPPING: The table `area_managers` ONLY contains `area_id` and `manager_id`. For geography/manager sales, use `master_sale` directly (`area_manager_name`).\n"
+                        f"11. DOCTOR SALES: In `master_sale`, doctors are recorded as `customer_name`. ALWAYS filter by `customer_type = 'Doctors'` to get physician-specific sales. The column `doctor_name` does NOT exist in `master_sale`. Also, the column for product categories is `product_group_name`, NOT `product_group`.\n"
+                        f"12. Database 'master_sale' uses `invoice_date`. The column `sale_date` does NOT exist.\n"
+                        f"13. WHAT-IF ROUTING: For any simulation, growth projection, or 'What-If' question, you MUST use OPTION B (Final Data/SQL) to fetch history. NEVER use OPTION C (Chat) for business projections.\n"
                         f"USER QUESTION: {prompt}"
                         f"{error_feedback}"
                         f"{exploration_feedback}\n\n"
                         "ROUTING RULES (Follow Carefully - AUTONOMOUS AGENT MODE):\n"
                         "OPTION A (Explore Data): If you are unsure of exact spellings or if your previous query returned 0 rows, write a diagnostic query inside ```explore\n ... \n``` (e.g. SELECT DISTINCT name). I will run it and feed the results back to you secretly so you can fix your final query.\n"
                         "OPTION B (Final Data): If you are confident your query will bring the correct data for the user, return the PostgreSQL SELECT query inside ```sql\n ... \n```.\n"
-                        "OPTION C (Chat): If the user is asking a normal conversational question or greetings, DO NOT generate SQL. Reply inside ```chat\n ... \n```."
+                        "OPTION C (Chat): ONLY for greetings ('hi', 'how are you'), simple text questions about your name, or general pharma definitions. NEVER use this for data analysis or business projections.\n"
                     )
                     
                     # ATTEMPT GENERATION
@@ -623,8 +657,9 @@ if prompt:
                         sum_prompt = (
                             f"{chat_context}\n"
                             f"User asked: {prompt}\nDB Result: {results}\n\n"
-                            "Task: If the user is asking a conversational question, about a chart, or about your reasoning/SQL logic, answer them directly and explain your reasoning.\n"
-                            "Otherwise, if it's a standard data query, provide a concise (1-2 sentence) business summary of the numeric results.\n"
+                             "Task: If the user is asking a conversational question, about a chart, or about your reasoning/SQL logic, answer them directly and explain your reasoning.\n"
+                             "Otherwise, if it's a standard data query, provide a concise (1-2 sentence) business summary of the numeric results.\n"
+                             "IMPORTANT: Always format numbers with commas (e.g. 5,000,000) and limit decimals to 2-3 places (e.g. 15.20). NEVER show long strings of raw zeros.\n"
                             "Language Check: If analyzing in Roman Urdu, ensure it is Pakistani Urdu (Never use Hindi terms like kripya, charcha, vishesh)."
                         )
                         summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": sum_prompt}], timeout=30.0)
@@ -644,63 +679,85 @@ if prompt:
                         # Table use formatted
                         st.dataframe(df_display, use_container_width=True)
                         
-                        # --- Enhanced Multi-Column Auto-Charting ---
+                        # --- FEATURE 1: AI INSIGHT CARDS ---
+                        try:
+                            insight_prompt = (
+                                f"Analyze this data table and provide 2-3 VERY SHORT business insights or anomalies (max 10 words each). "
+                                f"IMPORTANT: Format large numbers with commas/separators and max 2 decimals. Use Pakistani Roman Urdu. "
+                                f"Data: {df.head(10).to_dict(orient='records')}"
+                            )
+                            insight_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": insight_prompt}], timeout=15.0)
+                            insight_text = insight_res.choices[0].message.content
+                            st.info(f"💡 **AI Insights:**\n{insight_text}")
+                        except:
+                            pass
+                        
+                        # --- Enhanced Multi-Column Auto-Charting (with Multi-Plot support) ---
                         chart_data = None
+                        split_charts_metadata = None
                         if len(df_numeric) > 1:
-                            # 1. First column is the category (X-axis)
-                            x_col = df_numeric.columns[0]
-                            
-                            # 2. Identify numeric stats (Y-axis)
+                            cols = df_numeric.columns.tolist()
+                            first_col = cols[0]
                             num_cols = df_numeric.select_dtypes(include=['number']).columns.tolist()
-                            y_cols = []
-                            forbidden_exact = ['id', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month']
-                            for c in num_cols:
-                                c_lower = str(c).lower()
-                                if c == x_col:
-                                    continue
-                                # Block IDs and non-metric numbers
-                                if c_lower in forbidden_exact:
-                                    continue
-                                if c_lower.endswith('_id') or c_lower.endswith('id') and len(c_lower) > 4: # e.g. doctorId, managerId
-                                    if not c_lower.endswith('paid') and not c_lower.endswith('valid'):
-                                        continue
-                                if any(sub in c_lower for sub in ['_id', 'id_', 'mobile', 'phone']):
-                                    continue
-                                y_cols.append(c)
+                            unique_cats = df_numeric[first_col].unique()
                             
-                            # 3. Validation: X-axis must have valid categories (Not '0', NULL, or empty)
-                            valid_rows = df_numeric.copy()
-                            valid_rows[x_col] = valid_rows[x_col].astype(str).str.strip()
-                            valid_rows = valid_rows[
-                                (valid_rows[x_col] != "0") & 
-                                (valid_rows[x_col] != "None") & 
-                                (valid_rows[x_col] != "")
-                            ]
-                            if not valid_rows.empty and len(y_cols) > 0:
-                                # --- Live Chart (Plotly with Smart Scaling) ---
-                                plot_smart_chart(
-                                    valid_rows, 
-                                    x_col, 
-                                    y_cols, 
-                                    f"Analysis: {', '.join(y_cols)} per {x_col}", 
-                                    f"chart_new_{len(st.session_state.messages)}"
-                                )
-                                chart_data = (x_col, y_cols)
+                            # Decide if we need "Single Plot" or "Split Plots" (e.g. 5 products, each with 12 months)
+                            if len(unique_cats) < len(df_numeric) and len(cols) >= 2:
+                                # 🔥 MULTI-PLOT MODE (Split by Product/Category)
+                                group_col = first_col
+                                x_axis_col = cols[1]
+                                # Identify Metrics for Y-axis (excluding grouping and X columns)
+                                y_metrics = [c for c in num_cols if c not in [group_col, x_axis_col]]
+                                
+                                if y_metrics:
+                                    # Save metadata for next rerun
+                                    split_charts_metadata = {"group_col": group_col, "x_axis_col": x_axis_col, "y_metrics": y_metrics}
+                                    # Active rendering
+                                    # Use up to 5 unique categories to avoid clutter
+                                    for i, cat_val in enumerate(unique_cats[:5]):
+                                        subset = df_numeric[df_numeric[group_col] == cat_val].copy()
+                                        if not subset.empty: # Ensure subset is not empty before plotting
+                                            plot_smart_chart(
+                                                subset, 
+                                                x_axis_col, 
+                                                y_metrics, 
+                                                f"📊 {cat_val}: {', '.join(y_metrics)} Analysis", 
+                                                f"split_active_{i}"
+                                            )
                             else:
-                                if len(y_cols) > 0:
-                                    st.warning(f"⚠️ Cannot plot chart: Category column ('{x_col}') appears empty or invalid.")
-                
-                # --- GENERATE FOLLOW-UPS ---
-                follow_ups = []
-                try:
-                    f_prompt = f"Based on this answer: '{final_answer}', suggest 2 very short (max 5 words) follow-up questions about the data."
-                    f_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": f_prompt}], timeout=15.0)
-                    raw_f = f_res.choices[0].message.content
-                    follow_ups = [q.strip('1234. -').strip() for q in raw_f.split('\n') if '?' in q][:2]
-                except:
-                    follow_ups = []
+                                # ❄️ NORMAL PLOT MODE (One bar per Category)
+                                x_col = first_col
+                                forbidden_exact = ['id', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month']
+                                y_cols = []
+                                for c in num_cols:
+                                    c_lower = str(c).lower()
+                                    if c == x_col or c_lower in forbidden_exact:
+                                        continue
+                                    if c_lower.endswith('_id') or (c_lower.endswith('id') and len(c_lower) > 4):
+                                        continue
+                                    y_cols.append(c)
+                                
+                                if y_cols:
+                                    plot_smart_chart(
+                                        df_numeric, 
+                                        x_col, 
+                                        y_cols, 
+                                        f"Analysis: {', '.join(y_cols)} per {x_col}", 
+                                        f"chart_new_active"
+                                    )
+                                    chart_data = (x_col, y_cols)
+                        
+                        # --- GENERATE FOLLOW-UPS ---
+                        follow_ups = []
+                        try:
+                            f_prompt = f"Based on this answer: '{final_answer}', suggest 2 very short (max 5 words) follow-up questions about the data."
+                            f_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": f_prompt}], timeout=15.0)
+                            raw_f = f_res.choices[0].message.content
+                            follow_ups = [q.strip('1234. -').strip() for q in raw_f.split('\n') if '?' in q][:2]
+                        except:
+                            follow_ups = []
 
-                st.session_state.messages.append({"role": "assistant", "content": final_answer, "sql": sql_query if not is_conversational else "", "data": df_numeric if not df.empty else df, "chart_data": chart_data, "follow_ups": follow_ups, "timestamp": current_time_ai})
+                        st.session_state.messages.append({"role": "assistant", "content": final_answer, "sql": sql_query if not is_conversational else "", "data": df_numeric if not df.empty else df, "chart_data": chart_data, "split_charts_metadata": split_charts_metadata, "follow_ups": follow_ups, "timestamp": current_time_ai})
                 # Auto-save
                 new_id = save_session(st.session_state.current_session, st.session_state.messages)
                 if st.session_state.current_session.startswith("New_Session_"):

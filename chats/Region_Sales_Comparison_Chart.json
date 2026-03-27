@@ -1,0 +1,192 @@
+[
+    {
+        "role": "user",
+        "content": "Top 3 Region Managers (RM) aur unki overall annual sales ka muqabla (comparison) chart dikhao.",
+        "timestamp": "12:28 PM - Mar 27, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Top 3 Region Managers (RM) ki jagah sirf 2 Region Managers (RM) ki data available hai. RM - KHI - 1 ki annual sales lagbhag 2835245668 rupees hai, jabke RM - KHI - 2 ki annual sales lagbhag 625509918 rupees hai.",
+        "sql": "SELECT \n  r.name AS \"Region Manager Name\", \n  SUM(ms.total_amount) AS \"Total Annual Sales\"\nFROM \n  master_sale ms\n  JOIN regions r ON ms.region_name ILIKE CONCAT('%', r.name, '%')\nGROUP BY \n  r.name\nORDER BY \n  \"Total Annual Sales\" DESC\nLIMIT 3;",
+        "data": [
+            {
+                "Region Manager Name": "RM - KHI - 1",
+                "Total Annual Sales": 2835245667.5
+            },
+            {
+                "Region Manager Name": "RM - KHI - 2",
+                "Total Annual Sales": 625509918.0
+            }
+        ],
+        "chart_data": [
+            "Region Manager Name",
+            [
+                "Total Annual Sales"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Teesri RM ka data?",
+            "Sales mein kyun antar?"
+        ],
+        "timestamp": "12:29 PM - Mar 27, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Show me un Area Managers ki list jin ke 'Visits' pichlay mahine barhay hain, lekin 'Sales' (Revenue) neechay gayi hai",
+        "timestamp": "12:30 PM - Mar 27, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "MAUZ ke area manager ki visits pichlay mahine ke muqable is mahine barh gayi hain, lekin unki sales (revenue) neechay gayi hai, jo ke pichlay mahine 687810 rupees thi, ab 684270 rupees ho gayi hai.",
+        "sql": "WITH area_manager_visits AS (\n  SELECT \n    \"area_manager_name\", \n    SUM(CASE WHEN EXTRACT(MONTH FROM \"invoice_date\") = EXTRACT(MONTH FROM CURRENT_DATE) - 1 THEN 1 ELSE 0 END) AS \"previous_month_visits\",\n    SUM(CASE WHEN EXTRACT(MONTH FROM \"invoice_date\") = EXTRACT(MONTH FROM CURRENT_DATE) THEN 1 ELSE 0 END) AS \"current_month_visits\"\n  FROM \n    \"master_sale\" \n  WHERE \n    \"customer_type\" = 'Doctors'\n  GROUP BY \n    \"area_manager_name\"\n),\narea_manager_sales AS (\n  SELECT \n    \"area_manager_name\", \n    SUM(CASE WHEN EXTRACT(MONTH FROM \"invoice_date\") = EXTRACT(MONTH FROM CURRENT_DATE) - 1 THEN \"total_amount\" ELSE 0 END) AS \"previous_month_sales\",\n    SUM(CASE WHEN EXTRACT(MONTH FROM \"invoice_date\") = EXTRACT(MONTH FROM CURRENT_DATE) THEN \"total_amount\" ELSE 0 END) AS \"current_month_sales\"\n  FROM \n    \"master_sale\" \n  WHERE \n    \"customer_type\" = 'Doctors'\n  GROUP BY \n    \"area_manager_name\"\n)\nSELECT \n  amv.\"area_manager_name\",\n  amv.\"previous_month_visits\",\n  amv.\"current_month_visits\",\n  ams.\"previous_month_sales\",\n  ams.\"current_month_sales\"\nFROM \n  area_manager_visits amv\nJOIN \n  area_manager_sales ams ON amv.\"area_manager_name\" = ams.\"area_manager_name\"\nWHERE \n  amv.\"current_month_visits\" > amv.\"previous_month_visits\"\n  AND ams.\"current_month_sales\" < ams.\"previous_month_sales\";",
+        "data": [
+            {
+                "area_manager_name": "MAUZ",
+                "previous_month_visits": 34.0,
+                "current_month_visits": 37.0,
+                "previous_month_sales": 687810.0,
+                "current_month_sales": 684270.0
+            }
+        ],
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Kaunsi sales neechay gayi?",
+            "Kyun sales kam ho gayi?"
+        ],
+        "timestamp": "12:30 PM - Mar 27, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Kyun sales kam ho gayi?",
+        "timestamp": "12:31 PM - Mar 27, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "MAUZ ke area manager ki sales kam hone ke kai wajahein ho sakti hain. Pehli wajah yeh ho sakti hai ke MAUZ ke area manager ke ilaqe mein doctors ki visits toh barhi hain lekin unse sales (revenue) generate nahi ho raha, ya phir MAUZ ke area manager ke products ki demand kam ho gayi hai, ya phir competition badh gaya hai.",
+        "sql": "SELECT \n  \"area_manager_name\", \n  SUM(\"total_amount\") AS \"Total Sales\"\nFROM \n  master_sale \nWHERE \n  customer_type = 'Doctors'\n  AND EXTRACT(MONTH FROM invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE) - 1\nGROUP BY \n  \"area_manager_name\"\nORDER BY \n  \"Total Sales\" DESC\nLIMIT 10;",
+        "data": [
+            {
+                "area_manager_name": "HASEEB HASSAN",
+                "Total Sales": 1295210.0
+            },
+            {
+                "area_manager_name": "MAUZ",
+                "Total Sales": 687810.0
+            },
+            {
+                "area_manager_name": "FAHAD SATTAR",
+                "Total Sales": 649930.0
+            },
+            {
+                "area_manager_name": "S. FAHAD",
+                "Total Sales": 167590.0
+            }
+        ],
+        "chart_data": [
+            "area_manager_name",
+            [
+                "Total Sales"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "\"Kitni visits hui thi?\"",
+            "\"Demand kitni kam hue?\""
+        ],
+        "timestamp": "12:31 PM - Mar 27, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Agar main 'Karachi' area mein 'Antibiotics' product group par visits ki frequency double (2x) kar doon, tou meri aglay quarter ki prediction kya hogi?",
+        "timestamp": "12:34 PM - Mar 27, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Agar main 'Karachi' area mein 'Antibiotics' product group par visits ki frequency double (2x) kar doon, tou meri aglay quarter ki prediction kya hogi?",
+        "timestamp": "12:45 PM - Mar 27, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Agar aap 'Karachi' area mein 'Antibiotics' product group par visits ki frequency double kar dete hain, toh aapki sales (revenue) bhi increase ho sakti hai, lekin exact prediction ke liye humein aur data ki zaroorat hogi, jaise ke 'Antibiotics' product group ki current sales aur market demand.",
+        "sql": "WITH \n-- Monthly trend of Antibiotics in Karachi for Simulation\nantibiotics_karachi AS (\n  SELECT \n    EXTRACT(MONTH FROM invoice_date) AS month_number,\n    SUM(total_amount) AS total_revenue\n  FROM \n    master_sale \n  WHERE \n    product_group_name ILIKE '%Antibiotic%' \n    AND area_name ILIKE '%Karachi%'\n  GROUP BY \n    1\n),\n-- Double visit frequency simulation (2x growth assumption)\nsimulated_growth AS (\n  SELECT \n    month_number,\n    total_revenue * 2 AS simulated_revenue\n  FROM \n    antibiotics_karachi\n),\n-- Extrapolate to next quarter\nnext_quarter_projection AS (\n  SELECT \n    SUM(simulated_revenue) AS projected_revenue\n  FROM \n    simulated_growth\n  WHERE \n    month_number >= EXTRACT(MONTH FROM CURRENT_DATE)\n)\nSELECT \n  projected_revenue AS next_quarter_prediction\nFROM \n  next_quarter_projection;",
+        "data": [
+            {
+                "next_quarter_prediction": "None"
+            }
+        ],
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Kitni data zaroorat hogi?",
+            "Kya data uplabdh hai?"
+        ],
+        "timestamp": "12:45 PM - Mar 27, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Agar main 'KHI' area mein 'Product Group 1' par visits ki frequency double kar doon, tou meri prediction kya hogi?",
+        "timestamp": "12:58 PM - Mar 27, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Agar aap 'KHI' area mein 'Product Group 1' par visits ki frequency double kar dete hain, toh aapki aglay quarter ki prediction 5823376420 rupees ki hogi, jo kaafi bari increase hai. Yeh increase visits ki frequency double karne se expected hai, lekin exact results market demand aur competition ke basis par vary kar sakte hain.",
+        "sql": "WITH \n-- Monthly trend of Product Group 1 in KHI for Simulation\nproduct_group_khi AS (\n  SELECT \n    EXTRACT(MONTH FROM invoice_date) AS month_number,\n    SUM(total_amount) AS total_revenue\n  FROM \n    master_sale \n  WHERE \n    product_group_name ILIKE '%Product Group 1%' \n    AND area_name ILIKE '%KHI%'\n  GROUP BY \n    1\n),\n-- Double visit frequency simulation (2x growth assumption)\nsimulated_growth AS (\n  SELECT \n    month_number,\n    total_revenue * 2 AS simulated_revenue\n  FROM \n    product_group_khi\n),\n-- Extrapolate to next quarter\nnext_quarter_projection AS (\n  SELECT \n    SUM(simulated_revenue) AS projected_revenue\n  FROM \n    simulated_growth\n  WHERE \n    month_number >= EXTRACT(MONTH FROM CURRENT_DATE)\n)\nSELECT \n  projected_revenue AS next_quarter_prediction\nFROM \n  next_quarter_projection;",
+        "data": [
+            {
+                "next_quarter_prediction": "5823376420.000000000000000000000000000000"
+            }
+        ],
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Kya market demand stable?",
+            "Competition kitni hai?"
+        ],
+        "timestamp": "12:59 PM - Mar 27, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Agar main 'KHI' area mein 'Product Group 1' par visits ki frequency double kar doon, tou meri prediction kya hogi?",
+        "timestamp": "01:05 PM - Mar 27, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "sql": "WITH \n-- Monthly trend of Product Group 1 in KHI for Simulation\nproduct_group_khi AS (\n  SELECT \n    EXTRACT(MONTH FROM invoice_date) AS month_number,\n    SUM(total_amount) AS total_revenue\n  FROM \n    master_sale \n  WHERE \n    product_group_name ILIKE '%Product Group 1%' \n    AND area_name ILIKE '%KHI%'\n  GROUP BY \n    1\n),\n-- Double visit frequency simulation (2x growth assumption)\nsimulated_growth AS (\n  SELECT \n    month_number,\n    total_revenue * 2 AS simulated_revenue\n  FROM \n    product_group_khi\n),\n-- Extrapolate to next quarter\nnext_quarter_projection AS (\n  SELECT \n    SUM(simulated_revenue) AS projected_revenue\n  FROM \n    simulated_growth\n  WHERE \n    month_number >= EXTRACT(MONTH FROM CURRENT_DATE)\n)\nSELECT \n  projected_revenue AS next_quarter_prediction\nFROM \n  next_quarter_projection;",
+        "data": [
+            {
+                "next_quarter_prediction": "5823376420.000000000000000000000000000000"
+            }
+        ],
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Is data up to date?"
+        ],
+        "timestamp": "01:05 PM - Mar 27, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Agar main 'KHI' area mein 'Product Group 2' par visits ki frequency double kar doon, tou meri prediction kya hogi?",
+        "timestamp": "01:06 PM - Mar 27, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Agar aap 'KHI' area mein 'Product Group 2' par visits ki frequency double kar dete hain, toh aapki prediction zero hai. Yah result is liye hai kyunki hamare database mein 'Product Group 2' ke liye relevant data available nahi hai, jis wajah se hum next quarter ki prediction nahi kar sakte.",
+        "sql": "WITH \n-- Monthly trend of Product Group 2 in KHI for Simulation\nproduct_group_khi AS (\n  SELECT \n    EXTRACT(MONTH FROM invoice_date) AS month_number,\n    SUM(total_amount) AS total_revenue\n  FROM \n    master_sale \n  WHERE \n    product_group_name ILIKE '%Product Group 2%' \n    AND area_name ILIKE '%KHI%'\n  GROUP BY \n    1\n),\n-- Double visit frequency simulation (2x growth assumption)\nsimulated_growth AS (\n  SELECT \n    month_number,\n    total_revenue * 2 AS simulated_revenue\n  FROM \n    product_group_khi\n),\n-- Extrapolate to next quarter\nnext_quarter_projection AS (\n  SELECT \n    SUM(simulated_revenue) AS projected_revenue\n  FROM \n    simulated_growth\n  WHERE \n    month_number >= EXTRACT(MONTH FROM CURRENT_DATE)\n)\nSELECT \n  projected_revenue AS next_quarter_prediction\nFROM \n  next_quarter_projection;",
+        "data": [
+            {
+                "next_quarter_prediction": "None"
+            }
+        ],
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Data kyon nahi hai?",
+            "Kya data jod sakte?"
+        ],
+        "timestamp": "01:06 PM - Mar 27, 2026"
+    }
+]

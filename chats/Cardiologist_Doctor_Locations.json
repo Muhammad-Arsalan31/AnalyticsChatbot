@@ -1,0 +1,333 @@
+[
+    {
+        "role": "user",
+        "content": "Karachi ke un Top 5 Doctors ke locations dikhao jin ki specialization 'CARDIOLOGIST' hai.",
+        "timestamp": "12:19 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Karachi ke top 5 cardiology specialists ke locations yeh hain: \n1. Faisal Ahmed - 2 different locations: (24.94190456, 67.08152761) aur (24.94177933, 67.08136514)\n2. Faryal Tariq - (24.92167853, 67.08835331)\n3. Irshad Ahmed - (24.91068431, 67.07492286)\n4. Zahid Rasheed - (24.90982189, 67.1106825) \nIn doctors ki specialized field cardiology hai.",
+        "sql": "SELECT \n  dr.\"name\", \n  sp.\"name\" AS \"Specialization\", \n  hc.\"latitude\" AS \"Latitude\", \n  hc.\"longitude\" AS \"Longitude\"\nFROM \"doctors\" AS dr\nJOIN \"_doctorsTospecializatons\" AS dts ON dr.\"id\" = dts.\"A\"\nJOIN \"specializatons\" AS sp ON dts.\"B\" = sp.\"id\"\nJOIN \"_doctorsTohealthcentres\" AS dthc ON dr.\"id\" = dthc.\"A\"\nJOIN \"healthcentres\" AS hc ON dthc.\"B\" = hc.\"id\"\nWHERE sp.\"name\" ILIKE '%CARDIOLOGIST%' \n  AND hc.\"city_id\" IN (\n    SELECT \"id\" FROM \"city\" WHERE \"name\" ILIKE '%KARACHI%'\n  )\nORDER BY dr.\"name\" ASC\nLIMIT 5;",
+        "data": [
+            {
+                "name": "FAISAL AHMED",
+                "Specialization": "CARDIOLOGIST",
+                "Latitude": 24.94190456,
+                "Longitude": 67.08152761
+            },
+            {
+                "name": "FAISAL AHMED",
+                "Specialization": "CARDIOLOGIST",
+                "Latitude": 24.94177933,
+                "Longitude": 67.08136514
+            },
+            {
+                "name": "FARYAL TARIQ",
+                "Specialization": "CARDIOLOGIST",
+                "Latitude": 24.92167853,
+                "Longitude": 67.08835331
+            },
+            {
+                "name": "IRSHAD AHMED",
+                "Specialization": "CARDIOLOGIST",
+                "Latitude": 24.91068431,
+                "Longitude": 67.07492286
+            },
+            {
+                "name": "ZAHID RASHEED",
+                "Specialization": "CARDIOLOGIST",
+                "Latitude": 24.90982189,
+                "Longitude": 67.1106825
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "\"Kitne doctors hain?\"",
+            "\"Fee kitni hai?\""
+        ],
+        "timestamp": "12:21 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Agar main 'ZAID BIN SAEED' manager ke visits pichlay mahinay se 2 guna (2x) kar deta, tou uski sales par kitna monthly asar parta",
+        "timestamp": "12:22 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "User ne 'ZAID BIN SAEED' manager ke visits ko pichlay mahinay se 2 guna (2x) karne ka scenario present kiya hai, aur uski sales par monthly asar jaanna chahta hai. DB result ke mutabiq, [RealDictRow({'Projected Sales Increase': None})] hai, iska matlab hai ke humare pas is scenario ke liye specific data nahi hai, ya phir data analysis mein koi issue hai, isliye hum sales par asar ke bare mein koi accurate projection nahi de sakte.",
+        "sql": "WITH CurrentVisits AS (\n  SELECT \n    COUNT(dp.\"id\") AS \"Current Visits\"\n  FROM \n    \"doctor_plan\" dp\n  WHERE \n    dp.\"managerId\" = (SELECT id FROM managers WHERE name ILIKE '%ZAID BIN SAEED%')\n    AND EXTRACT(MONTH FROM dp.\"date\") = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')\n    AND EXTRACT(YEAR FROM dp.\"date\") = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')\n),\nCurrentSales AS (\n  SELECT \n    SUM(ms.\"total_amount\") AS \"Current Sales\"\n  FROM \n    \"master_sale\" ms\n  JOIN \n    \"customer_details\" cd ON ms.\"customer_id\" = cd.\"customer_id\"\n  JOIN \n    \"ims_brick\" ib ON cd.\"ims_brick_id\" = ib.\"id\"\n  WHERE \n    ib.\"name\" IN (\n      SELECT \n        ib.\"name\" \n      FROM \n        \"customer_details\" cd\n      JOIN \n        \"ims_brick\" ib ON cd.\"ims_brick_id\" = ib.\"id\"\n      JOIN \n        \"managers\" m ON cd.\"distributor_id\" = m.\"company_id\"\n      WHERE \n        m.\"name\" ILIKE '%ZAID BIN SAEED%'\n    )\n    AND EXTRACT(MONTH FROM ms.\"invoice_date\") = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')\n    AND EXTRACT(YEAR FROM ms.\"invoice_date\") = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')\n),\nProjectedVisits AS (\n  SELECT \n    (SELECT \"Current Visits\" FROM CurrentVisits) * 2 AS \"Projected Visits\"\n),\nProjectedSales AS (\n  SELECT \n    (SELECT \"Current Sales\" FROM CurrentSales) * 2 AS \"Projected Sales\"\n)\nSELECT \n  (SELECT \"Projected Sales\" FROM ProjectedSales) - (SELECT \"Current Sales\" FROM CurrentSales) AS \"Projected Sales Increase\"",
+        "data": [
+            {
+                "Projected Sales Increase": "None"
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Data kahan se aata hai?",
+            "Kya data available hai?"
+        ],
+        "timestamp": "12:23 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Show me all Health Centres in 'GULSHAN' area on map.",
+        "timestamp": "12:25 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Afsoos ke saath, hum ap ko bata dena chahtay hain ke 'GULSHAN' area ke liye health centres ki information available nahi hai. Yeh ho sakta hai ke filter jo aap ne use kiya hai, wo exact match nahi kar raha, ya phir data aisi specific combination ke liye available nahi hai.\n\nLekin hum ne similar options find kiye hain jo aap ki search se milte hain. Aap ye options try kar saktay hain: \n- GULSHAN-E-IQBAL BLOCK-5\n- GULSHAN-E-IQBAL BLOCK-6\n- GULSHAN-E-IQBAL BLOCK-7\n\nAap in options ko use kar ke apni search dobara try kar saktay hain, shayad aap ko required information mil jaye. Agar aap ko abhi bhi zaroorat ho, to hum se contact karein, hum aap ki madad karne ke liye yahan hain.",
+        "sql": "SELECT \n  hc.name, \n  hc.latitude, \n  hc.longitude\nFROM \n  healthcentres hc\nJOIN \n  areas a ON hc.area_id = a.id\nWHERE \n  a.name ILIKE '%GULSHAN%';",
+        "data": [],
+        "chart_data": null,
+        "follow_ups": [
+            "Data kab update hogi?",
+            "Kya data purani hai?"
+        ],
+        "timestamp": "12:25 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "GULSHAN-E-IQBAL BLOCK-5",
+        "timestamp": "12:26 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Assalam o Alaikum! \nAap ne jo filter use kiya hai, us pe nateeja 0 rows ki waja se nahi mil saka. Yeh ho sakta hai ke aap ne jo filter use kiya hai, woh kamawn kabhi match nahi ho raha, ya phir aap ki specific combination ke liye data available nahi hai. \nLekin, maine database me yeh similar option paaya hai:\n- GULSHAN-E-IQBAL BLOCK-5\nAap is option ko try kar sakte hain. Agar aap ko yeh option bhi nahi mil raha, to aap doosra filter use kar ke try kar sakte hain ya Mujhe bata sakte hain ke aap ko kis tarah ki madad chahiye.",
+        "sql": "SELECT \n  hc.name, \n  hc.latitude, \n  hc.longitude\nFROM \n  healthcentres hc\nJOIN \n  areas a ON hc.area_id = a.id\nWHERE \n  a.name ILIKE '%GULSHAN-E-IQBAL BLOCK-5%';",
+        "data": [],
+        "chart_data": null,
+        "follow_ups": [
+            "\"Data kahan se aaya?\"",
+            "\"aur options hai kya?\""
+        ],
+        "timestamp": "12:26 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "\"Kon se doctors ka ROI aur Revenue sab se zyada hai? Un ke clinics dikhao.",
+        "timestamp": "12:27 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Manager 'Waqas' ne pichlay hafte jo visits kiye un ki location aur status map par dikhao",
+        "timestamp": "12:28 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Manager 'Waqas' ne pichlay hafte jo visits kiye un ki location aur status map par dikhao",
+        "timestamp": "12:29 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "\"Pichlay 6 maheenay ki Monthly Internal Sales (master_sale) ka trend dikhao.",
+        "timestamp": "12:31 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Pichlay 6 maheenay ki Monthly Internal Sales (master_sale) ka trend dekha jaaye to, December me sab se zyada revenue 110788280 generet hua, January me sab se kam 609605.5 revenue generate hua.",
+        "sql": "SELECT \n  EXTRACT(MONTH FROM invoice_date) AS month_number,\n  SUM(total_amount) AS total_revenue\nFROM \n  master_sale\nWHERE \n  invoice_date >= NOW() - INTERVAL '6 month'\nGROUP BY \n  EXTRACT(MONTH FROM invoice_date)\nORDER BY \n  month_number;",
+        "data": [
+            {
+                "month_number": "1",
+                "total_revenue": 609605.5
+            },
+            {
+                "month_number": "10",
+                "total_revenue": 103185170.0
+            },
+            {
+                "month_number": "11",
+                "total_revenue": 106214080.0
+            },
+            {
+                "month_number": "12",
+                "total_revenue": 110788280.0
+            }
+        ],
+        "chart_data": [
+            "month_number",
+            [
+                "total_revenue"
+            ]
+        ],
+        "follow_ups": [
+            "Why January so low?",
+            "What caused December peak?"
+        ],
+        "timestamp": "12:31 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Compare Internal vs IMS Market Sales for 'GULSHAN' brick for year 2025.",
+        "timestamp": "12:32 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Agar hum GULSHAN brick ke liye Internal vs IMS Market Sales ka comparison karte hain, to saal 2025 me, IMS Market Units ki sale zyada hai, GULSHAN-E-IQBAL BLOCK-5 me sab se zyada difference hai jaha Internal Units 203084 hai aur IMS Market Units 616899 hai.",
+        "sql": "WITH Internal AS (\n  SELECT ib.name, SUM(ms.product_quantity) as qty \n  FROM master_sale ms \n  JOIN customer_details cd ON ms.customer_id = cd.customer_id \n  JOIN ims_brick ib ON cd.ims_brick_id = ib.id \n  WHERE ib.name ILIKE '%GULSHAN%' AND EXTRACT(YEAR FROM ms.invoice_date) = 2025\n  GROUP BY ib.name\n),\nMarket AS (\n  SELECT ib.name, SUM(s.unit) as qty \n  FROM ims_sale s \n  JOIN ims_brick ib ON s.\"brickId\" = ib.id \n  WHERE ib.name ILIKE '%GULSHAN%' AND EXTRACT(YEAR FROM s.invoice_date) = 2025\n  GROUP BY ib.name\n)\nSELECT \n  COALESCE(i.name, m.name) AS \"Brick Name\", \n  COALESCE(i.qty, 0) AS \"Internal Units\", \n  COALESCE(m.qty, 0) AS \"IMS Market Units\"\nFROM Internal i \nFULL OUTER JOIN Market m ON i.name = m.name\nORDER BY \"Internal Units\" DESC\nLIMIT 5;",
+        "data": [
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Units": 203084.0,
+                "IMS Market Units": 616899.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-2",
+                "Internal Units": 159455.0,
+                "IMS Market Units": 426823.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Internal Units": 159118.0,
+                "IMS Market Units": 478793.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Internal Units": 151440.0,
+                "IMS Market Units": 462415.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-16",
+                "Internal Units": 109773.0,
+                "IMS Market Units": 287885.0
+            }
+        ],
+        "chart_data": [
+            "Brick Name",
+            [
+                "Internal Units",
+                "IMS Market Units"
+            ]
+        ],
+        "follow_ups": [
+            "Why so much difference?",
+            "What causes this gap?"
+        ],
+        "timestamp": "12:32 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Show 'DR. FAISAL AHMED' on map.",
+        "timestamp": "12:36 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "It seems like you're ready to ask a new question. Mujhe apna sawal poochne ki zaroorat hai.",
+        "sql": "SELECT \n  dr.\"name\" AS \"Doctor Name\", \n  hc.\"name\" AS \"Health Centre\", \n  hc.\"latitude\", \n  hc.\"longitude\"\nFROM \"doctors\" AS dr\nJOIN \"_doctorsTohealthcentres\" AS dth ON dr.\"id\" = dth.\"A\"\nJOIN \"healthcentres\" AS hc ON dth.\"B\" = hc.\"id\"\nWHERE dr.\"name\" ILIKE '%faisal ahmed%';",
+        "data": [
+            {
+                "Doctor Name": "DR. FAISAL AHMED",
+                "Health Centre": "Faisal Clinic",
+                "latitude": 24.92748658,
+                "longitude": 67.06666228
+            },
+            {
+                "Doctor Name": "FAISAL AHMED",
+                "Health Centre": "Federal Hospital",
+                "latitude": 24.94190456,
+                "longitude": 67.08152761
+            },
+            {
+                "Doctor Name": "DR. FAISAL AHMED",
+                "Health Centre": "Liaquat National Hospital (LNH)",
+                "latitude": 24.89110658,
+                "longitude": 67.06835717
+            },
+            {
+                "Doctor Name": "FAISAL AHMED",
+                "Health Centre": "M I Hospital",
+                "latitude": 24.94177933,
+                "longitude": 67.08136514
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "What is next?",
+            "Is it ready?"
+        ],
+        "timestamp": "12:36 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Show 'DR. FAISAL AHMED' on map.",
+        "timestamp": "12:39 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "sql": "SELECT \n  dr.\"name\" AS \"Doctor Name\", \n  hc.\"name\" AS \"Health Centre\", \n  hc.\"latitude\", \n  hc.\"longitude\"\nFROM \"doctors\" AS dr\nJOIN \"_doctorsTohealthcentres\" AS dth ON dr.\"id\" = dth.\"A\"\nJOIN \"healthcentres\" AS hc ON dth.\"B\" = hc.\"id\"\nWHERE dr.\"name\" ILIKE '%faisal ahmed%';",
+        "data": [
+            {
+                "Doctor Name": "DR. FAISAL AHMED",
+                "Health Centre": "Faisal Clinic",
+                "latitude": 24.92748658,
+                "longitude": 67.06666228
+            },
+            {
+                "Doctor Name": "FAISAL AHMED",
+                "Health Centre": "Federal Hospital",
+                "latitude": 24.94190456,
+                "longitude": 67.08152761
+            },
+            {
+                "Doctor Name": "DR. FAISAL AHMED",
+                "Health Centre": "Liaquat National Hospital (LNH)",
+                "latitude": 24.89110658,
+                "longitude": 67.06835717
+            },
+            {
+                "Doctor Name": "FAISAL AHMED",
+                "Health Centre": "M I Hospital",
+                "latitude": 24.94177933,
+                "longitude": 67.08136514
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Is data up to date?",
+            "What's the source database?"
+        ],
+        "timestamp": "12:39 PM - Mar 26, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Show 'DR. FAISAL AHMED' on map.",
+        "timestamp": "12:39 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "sql": "SELECT \n  dr.\"name\" AS \"Doctor Name\", \n  hc.\"name\" AS \"Health Centre\", \n  hc.\"latitude\", \n  hc.\"longitude\"\nFROM \"doctors\" AS dr\nJOIN \"_doctorsTohealthcentres\" AS dth ON dr.\"id\" = dth.\"A\"\nJOIN \"healthcentres\" AS hc ON dth.\"B\" = hc.\"id\"\nWHERE dr.\"name\" ILIKE '%faisal ahmed%';",
+        "data": [
+            {
+                "Doctor Name": "DR. FAISAL AHMED",
+                "Health Centre": "Faisal Clinic",
+                "latitude": 24.92748658,
+                "longitude": 67.06666228
+            },
+            {
+                "Doctor Name": "FAISAL AHMED",
+                "Health Centre": "Federal Hospital",
+                "latitude": 24.94190456,
+                "longitude": 67.08152761
+            },
+            {
+                "Doctor Name": "DR. FAISAL AHMED",
+                "Health Centre": "Liaquat National Hospital (LNH)",
+                "latitude": 24.89110658,
+                "longitude": 67.06835717
+            },
+            {
+                "Doctor Name": "FAISAL AHMED",
+                "Health Centre": "M I Hospital",
+                "latitude": 24.94177933,
+                "longitude": 67.08136514
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Is data up-to-date?"
+        ],
+        "timestamp": "12:39 PM - Mar 26, 2026"
+    }
+]

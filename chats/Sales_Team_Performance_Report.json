@@ -1,0 +1,25 @@
+[
+    {
+        "role": "user",
+        "content": "Which Team has the highest target vs achievement?",
+        "timestamp": "12:07 PM - Mar 26, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "Since the total target and total achievement for the Neuropsychiatry team are both 0, yeh team ko koi target diya he nahi gya aur is liye koi achievement bhi nahi hai. In simple terms, the Neuropsychiatry team has no targets to achieve.",
+        "sql": "WITH Team_Targets AS (\n  SELECT \n    t.id,\n    t.name,\n    COALESCE(SUM(CASE WHEN EXTRACT(YEAR FROM tg.month) = EXTRACT(YEAR FROM CURRENT_DATE) THEN tg.quantity_target ELSE 0 END), 0) AS \"Total Target\",\n    COALESCE(SUM(CASE WHEN EXTRACT(YEAR FROM tg.month) = EXTRACT(YEAR FROM CURRENT_DATE) THEN tg.sale_target ELSE 0 END), 0) AS \"Total Achievement\"\n  FROM teams t\n  LEFT JOIN targets tg ON t.id = tg.team_id\n  GROUP BY t.id, t.name\n)\nSELECT \n  name, \n  \"Total Target\", \n  \"Total Achievement\"\nFROM Team_Targets\nORDER BY \"Total Target\" - \"Total Achievement\" DESC\nLIMIT 1;",
+        "data": [
+            {
+                "name": "Neuropsychiatry",
+                "Total Target": 0.0,
+                "Total Achievement": 0.0
+            }
+        ],
+        "chart_data": null,
+        "follow_ups": [
+            "Why no targets set?",
+            "What about other teams?"
+        ],
+        "timestamp": "12:08 PM - Mar 26, 2026"
+    }
+]

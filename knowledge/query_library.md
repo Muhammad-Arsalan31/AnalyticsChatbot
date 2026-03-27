@@ -73,3 +73,38 @@ GROUP BY product_name
 ORDER BY total_revenue DESC;
 ```
 **CRITICAL NOTE:** Database `master_sale` uses `invoice_date`. The column `sale_date` does NOT exist.
+
+### Example 9: Antibiotics Simulation (Product Group Analysis)
+```sql
+-- Monthly trend of Antibiotics in Karachi for Simulation
+SELECT 
+  product_group_name, 
+  SUM(total_amount) as total_revenue,
+  invoice_date
+FROM master_sale 
+WHERE product_group_name ILIKE '%Antibiotic%'
+AND area_name ILIKE '%Karachi%'
+GROUP BY 1, 3;
+```
+**CRITICAL:** Always use `product_group_name` (NOT `product_group`).
+### Example 6: Filtering Sales by Manager Name
+```sql
+-- Direct way: Using master_sale columns (Fastest)
+SELECT SUM(total_amount) 
+FROM master_sale 
+WHERE area_manager_name ILIKE '%Haider Ali%'
+AND invoice_date >= '2025-01-01';
+```
+**CRITICAL NOTE:** `area_managers` does NOT have `distributor_id`. Always use columns in `master_sale` for geography filtering.
+### Example 8: Top Doctor Sales (Pareto Analysis)
+```sql
+SELECT 
+  customer_name AS "Doctor Name", 
+  SUM(total_amount) AS "Total Sales"
+FROM master_sale 
+WHERE customer_type = 'Doctors'
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 10;
+```
+**CRITICAL:** `master_sale` uses `customer_name` for doctors. NEVER use `doctor_name`.
