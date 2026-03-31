@@ -34,7 +34,6 @@ class DecimalEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super().default(obj)
 
-CACHE_FILE = "query_cache.json"
 
 def smart_format_dataframe(df: pd.DataFrame):
     """
@@ -150,9 +149,13 @@ def plot_smart_chart(df: pd.DataFrame, x_col: str, y_cols: list, title: str, key
     fig.update_layout(xaxis=xaxis_config)
     st.plotly_chart(fig, use_container_width=True, key=key)
 
+def get_query_cache_path():
+    return os.path.join(get_chats_dir(), "query_cache.json")
+
 def load_query_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r") as f:
+    cache_path = get_query_cache_path()
+    if os.path.exists(cache_path):
+        with open(cache_path, "r") as f:
             return json.load(f)
     return {}
 
@@ -160,12 +163,15 @@ def save_to_query_cache(question, sql):
     cache = load_query_cache()
     normalized_q = question.lower().strip()
     cache[normalized_q] = sql
-    with open(CACHE_FILE, "w") as f:
+    with open(get_query_cache_path(), "w") as f:
         json.dump(cache, f, indent=4)
 
-CHATS_DIR = "chats"
-if not os.path.exists(CHATS_DIR):
-    os.makedirs(CHATS_DIR)
+def get_chats_dir():
+    username = st.session_state.get("username", "default")
+    d = os.path.join("chats", str(username).strip())
+    if not os.path.exists(d):
+        os.makedirs(d)
+    return d
 
 def save_session(session_id, messages):
     if not messages: return
@@ -189,7 +195,7 @@ def save_session(session_id, messages):
                 clean_fq = re.sub(r'[\\/*?:"<>|\n\r]+', "", first_q[:30])
                 title = clean_fq.replace(" ", "_")
     
-    file_path = os.path.join(CHATS_DIR, f"{title}.json")
+    file_path = os.path.join(get_chats_dir(), f"{title}.json")
     # Save with dataframes converted to dict for JSON
     serializable_msgs = []
     for m in messages:
@@ -203,12 +209,24 @@ def save_session(session_id, messages):
     return title
 
 def load_session(filename):
-    with open(os.path.join(CHATS_DIR, filename), "r") as f:
-        msgs = json.load(f)
+    with open(os.path.join(get_chats_dir(), filename), "r") as f:
+        try:
+            msgs = json.load(f)
+        except:
+            return []
+            
+        if isinstance(msgs, dict):
+            msgs = [msgs]
+        if not isinstance(msgs, list):
+            return []
+            
+        valid_msgs = []
         for m in msgs:
-            if "data" in m and m["data"] is not None:
-                m["data"] = pd.DataFrame(m["data"])
-        return msgs
+            if isinstance(m, dict):
+                if "data" in m and m["data"] is not None:
+                    m["data"] = pd.DataFrame(m["data"])
+                valid_msgs.append(m)
+        return valid_msgs
 
 # --- DATABASE ENGINE ---
 def run_sql_query(query: str):
@@ -301,6 +319,9 @@ def get_executive_kpis():
     
     return kpis
 
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Pharma Intelligence", page_icon="💊", layout="wide")
+
 # --- SESSION INITIALIZATION ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -308,9 +329,66 @@ if "current_session" not in st.session_state:
     st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
 if "prompt_trigger" not in st.session_state:
     st.session_state.prompt_trigger = None
+if "username" not in st.session_state:
+    st.session_state.username = None
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Pharma Intelligence", page_icon="💊", layout="wide")
+if not st.session_state.username:
+    import bcrypt
+
+    def verify_db_login(user_clean, pass_clean):
+        if user_clean == "admin" and pass_clean == "admin":
+            return True
+            
+        safe_user = user_clean.replace("'", "''")
+        pass_bytes = pass_clean.encode('utf-8')
+        
+        # 1. Check managers table
+        q1 = f"SELECT password FROM managers WHERE email ILIKE '{safe_user}' OR name ILIKE '{safe_user}' LIMIT 1"
+        res1 = run_sql_query(q1)
+        if isinstance(res1, list) and len(res1) > 0 and res1[0].get("password"):
+            db_hash = res1[0].get("password").encode('utf-8')
+            try:
+                if bcrypt.checkpw(pass_bytes, db_hash):
+                    return True
+            except:
+                pass
+                
+        # 2. Check users table
+        q2 = f"SELECT password FROM users WHERE email ILIKE '{safe_user}' OR firstname ILIKE '{safe_user}' LIMIT 1"
+        res2 = run_sql_query(q2)
+        if isinstance(res2, list) and len(res2) > 0 and res2[0].get("password"):
+            db_hash = str(res2[0].get("password")).encode('utf-8')
+            try:
+                if bcrypt.checkpw(pass_bytes, db_hash):
+                    return True
+            except:
+                if str(res2[0].get("password")) == pass_clean: # Fallback plain integer/text matching just in case
+                    return True
+                
+        return False
+
+    # --- LOGIN PAGE UI ---
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("<h1 style='text-align: center; color: #4DA8DA;'>👤</h1>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>Login</h3>", unsafe_allow_html=True)
+        
+        with st.form("login_form"):
+            user_input = st.text_input("Username", placeholder="👤 Email or Name")
+            pass_input = st.text_input("Password", type="password", placeholder="🔒 Password")
+            
+            submit = st.form_submit_button("LOGIN", use_container_width=True)
+            
+            if submit:
+                user_clean = user_input.strip()
+                if not user_clean:
+                    st.error("Please enter a username.")
+                elif verify_db_login(user_clean, pass_input):
+                    st.session_state.username = user_clean
+                    st.rerun()
+                else:
+                    st.error("Invalid Username or Password! (Hint: use 'admin' fallback)")
+    st.stop()
 
 # ... CSS remains same ...
 
@@ -328,8 +406,14 @@ st.divider()
 
 # --- SIDEBAR ---
 with st.sidebar:
+    st.header(f"🧑‍💼 Welcome, {st.session_state.username}")
+    if st.button("🚪 Logout"):
+        st.session_state.username = None
+        st.session_state.messages = []
+        st.rerun()
+    st.divider()
     st.header("📂 Chat Sessions")
-    chat_files = [f for f in os.listdir(CHATS_DIR) if f.endswith(".json")]
+    chat_files = [f for f in os.listdir(get_chats_dir()) if f.endswith(".json") and f not in ["query_cache.json", "users.json"]]
     
     if st.button("➕ New Chat"):
         st.session_state.messages = []
@@ -347,7 +431,7 @@ with st.sidebar:
                     st.rerun()
             with col2:
                 if st.button("🗑️ Delete"):
-                    file_to_del = os.path.join(CHATS_DIR, selected_chat)
+                    file_to_del = os.path.join(get_chats_dir(), selected_chat)
                     if os.path.exists(file_to_del):
                         os.remove(file_to_del)
                         st.session_state.messages = []
@@ -370,6 +454,26 @@ with st.sidebar:
 # --- HELPER: Handle question submission ---
 def submit_question(q):
     st.session_state.prompt_trigger = q
+
+def delete_message(msg_id):
+    # Find the index of the message with this ID
+    target_idx = -1
+    for i, m in enumerate(st.session_state.messages):
+        if m.get("msg_id") == msg_id:
+            target_idx = i
+            break
+            
+    if target_idx != -1:
+        # If it's an assistant message, delete it and its preceding user message
+        if st.session_state.messages[target_idx]["role"] == "assistant" and target_idx > 0:
+            st.session_state.messages.pop(target_idx)
+            st.session_state.messages.pop(target_idx - 1)
+        else:
+            st.session_state.messages.pop(target_idx)
+        
+        # Save updated state
+        save_session(st.session_state.current_session, st.session_state.messages)
+        st.rerun()
 
 # --- STARTER QUESTIONS (Show only if no messages) ---
 if not st.session_state.messages:
@@ -398,10 +502,18 @@ if not st.session_state.messages:
 for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        
+        m_id = message.get("msg_id", f"static_{idx}")
+        
+        # --- Compact Header for SQL, Download & Delete ---
+        header_cols = st.columns([4, 1, 1])
+        
+        with header_cols[2]:
+            if st.button("🗑️", key=f"del_{m_id}", help="Delete this message"):
+                delete_message(m_id)
+
         if "timestamp" in message:
             st.caption(f"🕒 {message['timestamp']}")
-        # --- Compact Header for SQL & Download ---
-        header_cols = st.columns([5, 1])
         
         with header_cols[0]:
             if "sql" in message and message["sql"]:
@@ -425,6 +537,9 @@ for idx, message in enumerate(st.session_state.messages):
 
             # Table use formatted
             st.dataframe(df_display_hist, use_container_width=True)
+            
+            if "insight" in message and message["insight"]:
+                st.info(f"💡 **AI Insights:**\n{message['insight']}")
             
             # --- Historical Charts (Support for Split Charts + Single Plots) ---
             split_meta = message.get("split_charts_metadata")
@@ -478,9 +593,10 @@ if prompt:
     with st.chat_message("user"):
         st.markdown(prompt)
         st.caption(f"🕒 {current_time}")
-    st.session_state.messages.append({"role": "user", "content": prompt, "timestamp": current_time})
+    st.session_state.messages.append({"role": "user", "content": prompt, "timestamp": current_time, "msg_id": f"u_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,1000)}"})
 
     with st.spinner("Retrieving Data..."):
+        sys_prompt = "You are a professional Pharma Database Agent. STRICTLY use proper English spelling for business terms (e.g., 'Business Summary', 'Sales', 'Growth') even when writing the rest of the sentence in Roman Urdu. Do NOT use literal phonetic translations like 'Biznes' or 'bikri'. STRICT: Do NOT use any emojis, icons, or decorative symbols."
         try:
             # --- 1. QUICKEST CACHE CHECK (No File Reads) ---
             cache = load_query_cache()
@@ -555,7 +671,6 @@ if prompt:
                     )
                     
                     # ATTEMPT GENERATION
-                    sys_prompt = "You are a professional Pharma Database Agent. If replying in Roman Urdu, STRICTLY use Pakistani Roman Urdu (avoid Hindi words like kripya, pradarshan, uttam, charcha). Use professional English where needed."
                     try:
                         response = client.chat.completions.create(
                             model=LLM_MODEL,
@@ -657,10 +772,14 @@ if prompt:
                         sum_prompt = (
                             f"{chat_context}\n"
                             f"User asked: {prompt}\nDB Result: {results}\n\n"
-                             "Task: If the user is asking a conversational question, about a chart, or about your reasoning/SQL logic, answer them directly and explain your reasoning.\n"
-                             "Otherwise, if it's a standard data query, provide a concise (1-2 sentence) business summary of the numeric results.\n"
-                             "IMPORTANT: Always format numbers with commas (e.g. 5,000,000) and limit decimals to 2-3 places (e.g. 15.20). NEVER show long strings of raw zeros.\n"
-                            "Language Check: If analyzing in Roman Urdu, ensure it is Pakistani Urdu (Never use Hindi terms like kripya, charcha, vishesh)."
+                             "TASK (Strategic Advisor Mode):\n"
+                             "1. If data shows numeric results, provide a structured Business Summary.\n"
+                             "2. WHAT-IF / SIMULATIONS: ONLY provide a 'Current' vs 'Predicted' comparison IF the user specifically asked for a 'what-if', 'prediction', 'simulation', or 'if I change' scenario. For standard data requests, stick to factual business summaries of existing results ONLY (no unsolicited predictions).\n"
+                             "3. FORMATTING: Use Markdown Headers (###), Bold text, and Bullet points. Strictly avoid long paragraphs.\n"
+                             "4. LARGE NUMBERS: Always use commas (e.g. PKR 3,500,000) and max 2 decimals.\n"
+                             "5. LANGUAGE: Use Pakistani Roman Urdu for sentence structure, but STRICTLY use English for ALL business terminology (e.g., write 'Business Summary' and NOT 'Biznes Sammary', write 'Sales' and NOT 'Bikri').\n"
+                             "6. INSIGHT: Always conclude with a 1-sentence strategic recommendation.\n"
+                             "7. STRICT RULE: NEVER refer to the user as 'Mamo'. Use respectful professional language."
                         )
                         summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": sum_prompt}], timeout=30.0)
                         final_answer = summary_res.choices[0].message.content
@@ -680,15 +799,16 @@ if prompt:
                         st.dataframe(df_display, use_container_width=True)
                         
                         # --- FEATURE 1: AI INSIGHT CARDS ---
+                        insight_msg = ""
                         try:
                             insight_prompt = (
                                 f"Analyze this data table and provide 2-3 VERY SHORT business insights or anomalies (max 10 words each). "
-                                f"IMPORTANT: Format large numbers with commas/separators and max 2 decimals. Use Pakistani Roman Urdu. "
+                                f"IMPORTANT: Format large numbers with commas/separators. Use Roman Urdu but STRICTLY use English for business terms (e.g., 'Sales'). NEVER use 'Mamo'. "
                                 f"Data: {df.head(10).to_dict(orient='records')}"
                             )
                             insight_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": insight_prompt}], timeout=15.0)
-                            insight_text = insight_res.choices[0].message.content
-                            st.info(f"💡 **AI Insights:**\n{insight_text}")
+                            insight_msg = insight_res.choices[0].message.content
+                            st.info(f"💡 **AI Insights:**\n{insight_msg}")
                         except:
                             pass
                         
@@ -706,8 +826,18 @@ if prompt:
                                 # 🔥 MULTI-PLOT MODE (Split by Product/Category)
                                 group_col = first_col
                                 x_axis_col = cols[1]
-                                # Identify Metrics for Y-axis (excluding grouping and X columns)
-                                y_metrics = [c for c in num_cols if c not in [group_col, x_axis_col]]
+                                # Blacklist for Y-axis metrics (ID, coordinates, status etc)
+                                forbidden_exact = ['id', 'status', 'eventType', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
+                                
+                                # Identify Metrics for Y-axis (excluding grouping, X columns, and forbidden columns)
+                                y_metrics = []
+                                for c in num_cols:
+                                    c_lower = str(c).lower()
+                                    if c in [group_col, x_axis_col] or c_lower in forbidden_exact:
+                                        continue
+                                    if c_lower.endswith('_id') or (c_lower.endswith('id') and len(c_lower) > 4):
+                                        continue
+                                    y_metrics.append(c)
                                 
                                 if y_metrics:
                                     # Save metadata for next rerun
@@ -727,7 +857,7 @@ if prompt:
                             else:
                                 # ❄️ NORMAL PLOT MODE (One bar per Category)
                                 x_col = first_col
-                                forbidden_exact = ['id', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month']
+                                forbidden_exact = ['id', 'status', 'eventType', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
                                 y_cols = []
                                 for c in num_cols:
                                     c_lower = str(c).lower()
@@ -757,7 +887,7 @@ if prompt:
                         except:
                             follow_ups = []
 
-                        st.session_state.messages.append({"role": "assistant", "content": final_answer, "sql": sql_query if not is_conversational else "", "data": df_numeric if not df.empty else df, "chart_data": chart_data, "split_charts_metadata": split_charts_metadata, "follow_ups": follow_ups, "timestamp": current_time_ai})
+                        st.session_state.messages.append({"role": "assistant", "content": final_answer, "sql": sql_query if not is_conversational else "", "data": df_numeric if not df.empty else df, "insight": insight_msg if 'insight_msg' in locals() else "", "chart_data": chart_data, "split_charts_metadata": split_charts_metadata, "follow_ups": follow_ups, "timestamp": current_time_ai, "msg_id": f"a_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,1000)}"})
                 # Auto-save
                 new_id = save_session(st.session_state.current_session, st.session_state.messages)
                 if st.session_state.current_session.startswith("New_Session_"):

@@ -1,0 +1,464 @@
+[
+    {
+        "role": "user",
+        "content": "internal sales ka data dikhow",
+        "timestamp": "12:23 PM - Mar 31, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\nInternal **Sales** data dikhai gayi hai, jisme kuch **Products** ki **Total Quantity** aur **Total Revenue** Nichols gayi hai.\n* **Product 1** ki **Total Quantity** 4,909,453 hai aur **Total Revenue** PKR 589,220,226.00 hai\n* **Product 2** ki **Total Quantity** 2,943,975 hai aur **Total Revenue** PKR 647,729,546.00 hai\n* **Product 3** ki **Total Quantity** 3,064,783 hai aur **Total Revenue** PKR 1,072,651,349.50 hai\n* **Product 4** ki **Total Quantity** 1,245,729 hai aur **Total Revenue** PKR 647,691,758.00 hai\n* **Product 5** ki **Total Quantity** 671,444 hai aur **Total Revenue** PKR 503,462,706.00 hai\n### Insight\nCompany ko **Sales** badhane ke liye **Product 3** par zyada focus karna chahiye, kyunki uski **Total Revenue** sabse zyada hai.",
+        "sql": "SELECT \n  product_name, \n  SUM(product_quantity) AS total_quantity, \n  SUM(total_amount) AS total_revenue\nFROM master_sale\nGROUP BY product_name\nORDER BY total_revenue DESC;",
+        "data": [
+            {
+                "product_name": "Product 3",
+                "total_quantity": 3064783.0,
+                "total_revenue": 1072651349.5
+            },
+            {
+                "product_name": "Product 2",
+                "total_quantity": 2943975.0,
+                "total_revenue": 647729546.0
+            },
+            {
+                "product_name": "Product 4",
+                "total_quantity": 1245729.0,
+                "total_revenue": 647691758.0
+            },
+            {
+                "product_name": "Product 1",
+                "total_quantity": 4909453.0,
+                "total_revenue": 589220226.0
+            },
+            {
+                "product_name": "Product 5",
+                "total_quantity": 671444.0,
+                "total_revenue": 503462706.0
+            },
+            {
+                "product_name": "No Sale",
+                "total_quantity": 0.0,
+                "total_revenue": 0.0
+            }
+        ],
+        "insight": "yeh data ke mutabiq, Sales ka record 1,072,651,349.50. \nProduct 3 ki Sales sab se zyada hai. \nGrowth ko dekhna zaroori hai.",
+        "chart_data": [
+            "product_name",
+            [
+                "total_quantity",
+                "total_revenue"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Product 3 ka profit?",
+            "Sales ke baad ka plan?"
+        ],
+        "timestamp": "12:23 PM - Mar 31, 2026"
+    },
+    {
+        "role": "user",
+        "content": "ye batow ke ye sales kis kis bricks or territory se ho rhi ha",
+        "timestamp": "12:24 PM - Mar 31, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\nInternal **Sales** data ki **Business Summary** nimnay likhi hai:\n* Total **Sales** PKR 5,917,119,191.50 hai\n* Sab se zyada **Sales** F.B.AREA BLOCK-3 se hai, jiske **Total Quantity** 783,091 aur **Total Sales** PKR 226,978,565.00 hai\n* Dosre number par GULSHAN-E-IQBAL BLOCK-5 hai, jiske **Total Quantity** 585,494 aur **Total Sales** PKR 159,953,428.00 hai\n* Teesre number par P.I.B. COLONY hai, jiske **Total Quantity** 507,616 aur **Total Sales** PKR 142,992,203.00 hai\n\nKey **Products** ke **Sales** aur **Growth** trends ko dekhne se pata chalta hai ke kuch **Bricks** jese F.B.AREA BLOCK-3, GULSHAN-E-IQBAL BLOCK-5, aur P.I.B. COLONY se **Sales** ki **Growth** zyada hai.\n\nStrategic insight: Company ko apne **Marketing** aur **Distribution** strategies ko F.B.AREA BLOCK-3, GULSHAN-E-IQBAL BLOCK-5, aur P.I.B. COLONY jese **Bricks** par focus karna chahiye jahan **Sales** ki **Growth** zyada hai.",
+        "sql": "SELECT \n  ib.name AS \"Brick Name\",\n  SUM(ms.product_quantity) AS \"Total Quantity\",\n  SUM(ms.total_amount) AS \"Total Sales\"\nFROM master_sale ms\nJOIN customer_details cd ON ms.customer_id = cd.customer_id\nJOIN ims_brick ib ON cd.ims_brick_id = ib.id\nGROUP BY ib.name\nORDER BY \"Total Sales\" DESC;",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Total Quantity": 783091.0,
+                "Total Sales": 226978565.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Total Quantity": 585494.0,
+                "Total Sales": 159953427.5
+            },
+            {
+                "Brick Name": "P.I.B. COLONY",
+                "Total Quantity": 507616.0,
+                "Total Sales": 142992203.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-13",
+                "Total Quantity": 495923.0,
+                "Total Sales": 141435925.5
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-14",
+                "Total Quantity": 512476.0,
+                "Total Sales": 135398086.0
+            },
+            {
+                "Brick Name": "A.H.ISPHANI ROAD",
+                "Total Quantity": 492454.0,
+                "Total Sales": 131015308.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Total Quantity": 450985.0,
+                "Total Sales": 128681352.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Total Quantity": 437941.0,
+                "Total Sales": 126598400.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-20",
+                "Total Quantity": 419869.0,
+                "Total Sales": 111124121.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-17",
+                "Total Quantity": 408216.0,
+                "Total Sales": 106489128.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-2",
+                "Total Quantity": 444031.0,
+                "Total Sales": 102732438.0
+            },
+            {
+                "Brick Name": "GULBAHAR RIZVIA SOCIETY",
+                "Total Quantity": 302976.0,
+                "Total Sales": 89002986.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-7",
+                "Total Quantity": 310114.0,
+                "Total Sales": 85623430.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-8",
+                "Total Quantity": 320960.0,
+                "Total Sales": 80795488.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-10A",
+                "Total Quantity": 258452.0,
+                "Total Sales": 74661664.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-16",
+                "Total Quantity": 303236.0,
+                "Total Sales": 74570442.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-B",
+                "Total Quantity": 257132.0,
+                "Total Sales": 70238164.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-10",
+                "Total Quantity": 243894.0,
+                "Total Sales": 68169900.0
+            },
+            {
+                "Brick Name": "MOOSA COLONY",
+                "Total Quantity": 224196.0,
+                "Total Sales": 61398938.0
+            },
+            {
+                "Brick Name": "ASHFAQ MEMORIAL HOSP. - GULSHA",
+                "Total Quantity": 233998.0,
+                "Total Sales": 60158432.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-19",
+                "Total Quantity": 226794.0,
+                "Total Sales": 54628881.5
+            },
+            {
+                "Brick Name": "LIAQUATABAD C-AREA",
+                "Total Quantity": 208013.0,
+                "Total Sales": 53948232.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-11",
+                "Total Quantity": 185202.0,
+                "Total Sales": 51752989.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-9",
+                "Total Quantity": 177820.0,
+                "Total Sales": 46782952.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-16",
+                "Total Quantity": 192379.0,
+                "Total Sales": 46410992.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-4",
+                "Total Quantity": 162950.0,
+                "Total Sales": 43735292.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-A",
+                "Total Quantity": 152708.0,
+                "Total Sales": 40195186.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-10",
+                "Total Quantity": 134352.0,
+                "Total Sales": 40056200.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-7",
+                "Total Quantity": 127404.0,
+                "Total Sales": 35343578.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-18",
+                "Total Quantity": 138612.0,
+                "Total Sales": 35154540.0
+            },
+            {
+                "Brick Name": "JAMSHED ROAD",
+                "Total Quantity": 124306.0,
+                "Total Sales": 34886590.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-4",
+                "Total Quantity": 155173.0,
+                "Total Sales": 34638340.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-C",
+                "Total Quantity": 138115.0,
+                "Total Sales": 34316007.0
+            },
+            {
+                "Brick Name": "MARTIN QUARTER",
+                "Total Quantity": 130510.0,
+                "Total Sales": 34137270.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-3",
+                "Total Quantity": 112393.0,
+                "Total Sales": 33862200.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-15",
+                "Total Quantity": 121310.0,
+                "Total Sales": 33540666.0
+            },
+            {
+                "Brick Name": "SOHRAB GOTH",
+                "Total Quantity": 128510.0,
+                "Total Sales": 31024380.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-2",
+                "Total Quantity": 123318.0,
+                "Total Sales": 30767926.0
+            },
+            {
+                "Brick Name": "NADEEM MEDICAL CENTRE - GULSHA",
+                "Total Quantity": 117282.0,
+                "Total Sales": 29891140.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D-2",
+                "Total Quantity": 105688.0,
+                "Total Sales": 29356320.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D-1",
+                "Total Quantity": 94374.0,
+                "Total Sales": 26726630.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-4-A",
+                "Total Quantity": 94479.0,
+                "Total Sales": 26658206.0
+            },
+            {
+                "Brick Name": "GHARIBABAD",
+                "Total Quantity": 92424.0,
+                "Total Sales": 26414924.0
+            },
+            {
+                "Brick Name": "MEMON MEDICAL COMPLEX - F.B.AR",
+                "Total Quantity": 85612.0,
+                "Total Sales": 23332610.0
+            },
+            {
+                "Brick Name": "FATIMA JINNAH COLONY",
+                "Total Quantity": 85189.0,
+                "Total Sales": 22999486.0
+            },
+            {
+                "Brick Name": "LIAQUAT NATIONAL HOSPITAL - ST",
+                "Total Quantity": 80012.0,
+                "Total Sales": 22317460.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-21",
+                "Total Quantity": 76568.0,
+                "Total Sales": 21644158.0
+            },
+            {
+                "Brick Name": "SINDH GOVT. HOSPITAL - LIAQUTA-VICINITY",
+                "Total Quantity": 76622.0,
+                "Total Sales": 21598159.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-6",
+                "Total Quantity": 88250.0,
+                "Total Sales": 21446910.0
+            },
+            {
+                "Brick Name": "F.C.AREA",
+                "Total Quantity": 75220.0,
+                "Total Sales": 20619606.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-12",
+                "Total Quantity": 74154.0,
+                "Total Sales": 20338850.0
+            },
+            {
+                "Brick Name": "GULBAHAR",
+                "Total Quantity": 72993.0,
+                "Total Sales": 18417660.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-1",
+                "Total Quantity": 72375.0,
+                "Total Sales": 17224872.0
+            },
+            {
+                "Brick Name": "UNIVERSITY ROAD",
+                "Total Quantity": 61264.0,
+                "Total Sales": 16963170.0
+            },
+            {
+                "Brick Name": "NEW TOWN",
+                "Total Quantity": 64848.0,
+                "Total Sales": 16680994.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-5",
+                "Total Quantity": 58248.0,
+                "Total Sales": 15985560.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-9",
+                "Total Quantity": 60636.0,
+                "Total Sales": 15535156.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-1",
+                "Total Quantity": 53011.0,
+                "Total Sales": 15353490.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-22",
+                "Total Quantity": 56843.0,
+                "Total Sales": 14549469.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-12",
+                "Total Quantity": 53006.0,
+                "Total Sales": 14339650.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-1",
+                "Total Quantity": 51562.0,
+                "Total Sales": 12800390.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-3",
+                "Total Quantity": 37546.0,
+                "Total Sales": 10113340.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-4",
+                "Total Quantity": 35873.0,
+                "Total Sales": 9392850.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-7",
+                "Total Quantity": 29857.0,
+                "Total Sales": 9104240.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D-3",
+                "Total Quantity": 35036.0,
+                "Total Sales": 9058510.0
+            },
+            {
+                "Brick Name": "KDA SCHEME-1",
+                "Total Quantity": 31542.0,
+                "Total Sales": 8415366.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-14",
+                "Total Quantity": 25965.0,
+                "Total Sales": 7855800.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-5",
+                "Total Quantity": 29534.0,
+                "Total Sales": 7381460.0
+            },
+            {
+                "Brick Name": "JEHANGIR ROAD",
+                "Total Quantity": 26567.0,
+                "Total Sales": 7164470.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD B-AREA",
+                "Total Quantity": 25654.0,
+                "Total Sales": 6965240.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D",
+                "Total Quantity": 15111.0,
+                "Total Sales": 4566480.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-2",
+                "Total Quantity": 16644.0,
+                "Total Sales": 4116550.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-10",
+                "Total Quantity": 12929.0,
+                "Total Sales": 3296720.0
+            },
+            {
+                "Brick Name": "USMAN MEMORIAL HOSPITAL - F.B.",
+                "Total Quantity": 10480.0,
+                "Total Sales": 3163000.0
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-8",
+                "Total Quantity": 9139.0,
+                "Total Sales": 2945730.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-G",
+                "Total Quantity": 9924.0,
+                "Total Sales": 2820340.0
+            }
+        ],
+        "insight": "F.B.AREA BLOCK-3 mein 226,978,565.00 ki Total Sales hai. \nGULSHAN-E-IQBAL BLOCK-5 ki Total Quantity 585,494 hai. \nF.B.AREA BLOCK-3 ki Growth sabse zyada hai.",
+        "chart_data": [
+            "Brick Name",
+            [
+                "Total Quantity",
+                "Total Sales"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Top products kaun se?",
+            "Growth ka reason kya?"
+        ],
+        "timestamp": "12:26 PM - Mar 31, 2026"
+    }
+]

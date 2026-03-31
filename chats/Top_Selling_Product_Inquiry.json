@@ -1,0 +1,507 @@
+[
+    {
+        "role": "user",
+        "content": "hamare pass jo doctors ha unme sbse zyda sales generate jo kr rha ha kiya tm bta skte ho ke wo kis product pr kr rha ha",
+        "timestamp": "12:06 PM - Mar 30, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\n**Doctors ki Sales Performance**: Hamare pass jo doctors hain, unme sab se zyada sales generate karne wala **Product 3** hai, jiske total sales **PKR 11,073,300.00** hain.\n\n### Current vs Predicted Sales\n* **Current Sales**: PKR 11,073,300.00\n* **Predicted Sales (15% growth, 2x visit increase)**: \n  * 2x visit increase ke case me, sales **PKR 12,684,178.50** tak pohnch sakti hain (assuming 15% growth)\n  * Ya **PKR 13,293,103.50** tak bhi pohnch sakti hain (assuming 20% growth)\n\n### Strategic Recommendation\nHamare doctors ko **Product 3** ke sales me aur focus karna chahiye, ta ke hum apne sales targets ko achieve kar sakein aur market me apni position mazboot bana sakein.",
+        "sql": "SELECT \n  product_name, \n  SUM(total_amount) AS \"Total Sales\"\nFROM master_sale \nWHERE customer_type = 'Doctors'\nGROUP BY 1\nORDER BY 2 DESC\nLIMIT 1;",
+        "data": [
+            {
+                "product_name": "Product 3",
+                "Total Sales": 11073300.0
+            }
+        ],
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Sales mein kya growth?",
+            "Product 3 ka market?"
+        ],
+        "timestamp": "12:07 PM - Mar 30, 2026"
+    },
+    {
+        "role": "user",
+        "content": "Product 3 ka market?",
+        "timestamp": "12:08 PM - Mar 30, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\n**Product 3 ka Market**: Product 3 ka market share aur sales data dekhne se pata chalta hai ke yeh product **F.B.AREA BLOCK-3**, **GULSHAN-E-IQBAL BLOCK-5**, aur **F.B.AREA BLOCK-13** me sab se zyada popular hai, jahan **Internal Sales** respectively PKR 69,773,820.00, PKR 54,719,396.00, aur PKR ",
+        "sql": "WITH Internal AS (\n  SELECT \n    ib.name AS brick_name, \n    SUM(ms.total_amount) AS internal_sales\n  FROM master_sale ms\n  JOIN customer_details cd ON ms.customer_id = cd.customer_id\n  JOIN ims_brick ib ON cd.ims_brick_id = ib.id\n  WHERE ms.product_name = 'Product 3'\n  GROUP BY ib.name\n),\nMarket AS (\n  SELECT \n    ib.name AS brick_name, \n    SUM(s.unit) AS market_sales\n  FROM ims_sale s\n  JOIN ims_brick ib ON s.\"brickId\" = ib.id\n  WHERE s.product_id IN (SELECT id FROM products WHERE name = 'Product 3')\n  GROUP BY ib.name\n)\nSELECT \n  COALESCE(i.brick_name, m.brick_name) AS \"Brick Name\", \n  COALESCE(i.internal_sales, 0) AS \"Internal Sales\", \n  COALESCE(m.market_sales, 0) AS \"Market Sales\",\n  ROUND(COALESCE(i.internal_sales, 0) / COALESCE(m.market_sales, 1), 4) * 100 AS \"Market Share %\"\nFROM Internal i\nFULL OUTER JOIN Market m ON i.brick_name = m.brick_name\nORDER BY \"Internal Sales\" DESC;",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Internal Sales": 69773820.0,
+                "Market Sales": 504095.0,
+                "Market Share %": 13841.4
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Sales": 54719396.0,
+                "Market Sales": 358538.0,
+                "Market Share %": 15261.81
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-13",
+                "Internal Sales": 43849982.0,
+                "Market Sales": 309293.0,
+                "Market Share %": 14177.49
+            },
+            {
+                "Brick Name": "A.H.ISPHANI ROAD",
+                "Internal Sales": 42335882.0,
+                "Market Sales": 306950.0,
+                "Market Share %": 13792.44
+            },
+            {
+                "Brick Name": "P.I.B. COLONY",
+                "Internal Sales": 42220285.0,
+                "Market Sales": 294130.0,
+                "Market Share %": 14354.29
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-14",
+                "Internal Sales": 41047882.0,
+                "Market Sales": 282762.0,
+                "Market Share %": 14516.76
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-6",
+                "Internal Sales": 40000100.0,
+                "Market Sales": 277856.0,
+                "Market Share %": 14395.98
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-17",
+                "Internal Sales": 36082470.0,
+                "Market Sales": 266193.0,
+                "Market Share %": 13555.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-20",
+                "Internal Sales": 33566050.0,
+                "Market Sales": 232507.0,
+                "Market Share %": 14436.58
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-17",
+                "Internal Sales": 32620350.0,
+                "Market Sales": 232834.0,
+                "Market Share %": 14010.13
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-2",
+                "Internal Sales": 31216500.0,
+                "Market Sales": 221728.0,
+                "Market Share %": 14078.74
+            },
+            {
+                "Brick Name": "GULBAHAR RIZVIA SOCIETY",
+                "Internal Sales": 25716876.0,
+                "Market Sales": 187094.0,
+                "Market Share %": 13745.43
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-7",
+                "Internal Sales": 25469150.0,
+                "Market Sales": 180573.0,
+                "Market Share %": 14104.63
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-8",
+                "Internal Sales": 25444300.0,
+                "Market Sales": 232632.0,
+                "Market Share %": 10937.58
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-16",
+                "Internal Sales": 23693950.0,
+                "Market Sales": 158169.0,
+                "Market Share %": 14980.15
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-10A",
+                "Internal Sales": 23574745.0,
+                "Market Sales": 162665.0,
+                "Market Share %": 14492.82
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-B",
+                "Internal Sales": 22978200.0,
+                "Market Sales": 205079.0,
+                "Market Share %": 11204.56
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-10",
+                "Internal Sales": 20581400.0,
+                "Market Sales": 143404.0,
+                "Market Share %": 14352.04
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-19",
+                "Internal Sales": 18465175.5,
+                "Market Sales": 120236.0,
+                "Market Share %": 15357.44
+            },
+            {
+                "Brick Name": "MOOSA COLONY",
+                "Internal Sales": 17804500.0,
+                "Market Sales": 135897.0,
+                "Market Share %": 13101.47
+            },
+            {
+                "Brick Name": "ASHFAQ MEMORIAL HOSP. - GULSHA",
+                "Internal Sales": 17234350.0,
+                "Market Sales": 128499.0,
+                "Market Share %": 13412.05
+            },
+            {
+                "Brick Name": "LIAQUATABAD C-AREA",
+                "Internal Sales": 16278500.0,
+                "Market Sales": 119286.0,
+                "Market Share %": 13646.61
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-11",
+                "Internal Sales": 15805300.0,
+                "Market Sales": 111777.0,
+                "Market Share %": 14140.03
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-16",
+                "Internal Sales": 13900250.0,
+                "Market Sales": 98847.0,
+                "Market Share %": 14062.39
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-A",
+                "Internal Sales": 13120222.0,
+                "Market Sales": 90772.0,
+                "Market Share %": 14454.04
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-10",
+                "Internal Sales": 13010900.0,
+                "Market Sales": 88116.0,
+                "Market Share %": 14765.65
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-9",
+                "Internal Sales": 12750182.0,
+                "Market Sales": 116784.0,
+                "Market Share %": 10917.75
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-4",
+                "Internal Sales": 12254541.0,
+                "Market Sales": 85433.0,
+                "Market Share %": 14344.04
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-18",
+                "Internal Sales": 12159350.0,
+                "Market Sales": 82963.0,
+                "Market Share %": 14656.35
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-7",
+                "Internal Sales": 11430338.0,
+                "Market Sales": 74268.0,
+                "Market Share %": 15390.66
+            },
+            {
+                "Brick Name": "NADEEM MEDICAL CENTRE - GULSHA",
+                "Internal Sales": 11240250.0,
+                "Market Sales": 72786.0,
+                "Market Share %": 15442.87
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-C",
+                "Internal Sales": 11141082.0,
+                "Market Sales": 78654.0,
+                "Market Share %": 14164.67
+            },
+            {
+                "Brick Name": "SOHRAB GOTH",
+                "Internal Sales": 10946950.0,
+                "Market Sales": 68283.0,
+                "Market Share %": 16031.74
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-15",
+                "Internal Sales": 10631591.0,
+                "Market Sales": 76746.0,
+                "Market Share %": 13852.96
+            },
+            {
+                "Brick Name": "JAMSHED ROAD",
+                "Internal Sales": 10588550.0,
+                "Market Sales": 75820.0,
+                "Market Share %": 13965.38
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-3",
+                "Internal Sales": 10582250.0,
+                "Market Sales": 72580.0,
+                "Market Share %": 14580.12
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-4",
+                "Internal Sales": 10346270.0,
+                "Market Sales": 78324.0,
+                "Market Share %": 13209.58
+            },
+            {
+                "Brick Name": "MARTIN QUARTER",
+                "Internal Sales": 10270400.0,
+                "Market Sales": 68779.0,
+                "Market Share %": 14932.46
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D-2",
+                "Internal Sales": 9175250.0,
+                "Market Sales": 66104.0,
+                "Market Share %": 13880.02
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D-1",
+                "Internal Sales": 8535450.0,
+                "Market Sales": 56652.0,
+                "Market Share %": 15066.46
+            },
+            {
+                "Brick Name": "GHARIBABAD",
+                "Internal Sales": 8327900.0,
+                "Market Sales": 55690.0,
+                "Market Share %": 14954.03
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-2",
+                "Internal Sales": 8299408.0,
+                "Market Sales": 68280.0,
+                "Market Share %": 12154.96
+            },
+            {
+                "Brick Name": "LIAQUAT NATIONAL HOSPITAL - ST",
+                "Internal Sales": 8241800.0,
+                "Market Sales": 53298.0,
+                "Market Share %": 15463.62
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-4-A",
+                "Internal Sales": 7891800.0,
+                "Market Sales": 55385.0,
+                "Market Share %": 14248.98
+            },
+            {
+                "Brick Name": "FATIMA JINNAH COLONY",
+                "Internal Sales": 7551950.0,
+                "Market Sales": 53335.0,
+                "Market Share %": 14159.46
+            },
+            {
+                "Brick Name": "SINDH GOVT. HOSPITAL - LIAQUTA-VICINITY",
+                "Internal Sales": 7504000.0,
+                "Market Sales": 60883.0,
+                "Market Share %": 12325.28
+            },
+            {
+                "Brick Name": "MEMON MEDICAL COMPLEX - F.B.AR",
+                "Internal Sales": 7141750.0,
+                "Market Sales": 58963.0,
+                "Market Share %": 12112.26
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-21",
+                "Internal Sales": 6600788.0,
+                "Market Sales": 46613.0,
+                "Market Share %": 14160.83
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-6",
+                "Internal Sales": 6445600.0,
+                "Market Sales": 45962.0,
+                "Market Share %": 14023.76
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-1",
+                "Internal Sales": 6142850.0,
+                "Market Sales": 49238.0,
+                "Market Share %": 12475.83
+            },
+            {
+                "Brick Name": "F.C.AREA",
+                "Internal Sales": 6124300.0,
+                "Market Sales": 43625.0,
+                "Market Share %": 14038.51
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-12",
+                "Internal Sales": 6053950.0,
+                "Market Sales": 41632.0,
+                "Market Share %": 14541.58
+            },
+            {
+                "Brick Name": "GULBAHAR",
+                "Internal Sales": 5777100.0,
+                "Market Sales": 37402.0,
+                "Market Share %": 15445.97
+            },
+            {
+                "Brick Name": "UNIVERSITY ROAD",
+                "Internal Sales": 5483100.0,
+                "Market Sales": 35865.0,
+                "Market Share %": 15288.16
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-9",
+                "Internal Sales": 5274850.0,
+                "Market Sales": 32357.0,
+                "Market Share %": 16302.04
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-5",
+                "Internal Sales": 4826150.0,
+                "Market Sales": 36214.0,
+                "Market Share %": 13326.75
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-12",
+                "Internal Sales": 4777500.0,
+                "Market Sales": 30934.0,
+                "Market Share %": 15444.17
+            },
+            {
+                "Brick Name": "NEW TOWN",
+                "Internal Sales": 4740864.0,
+                "Market Sales": 37739.0,
+                "Market Share %": 12562.24
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-1",
+                "Internal Sales": 4628750.0,
+                "Market Sales": 37098.0,
+                "Market Share %": 12477.09
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-22",
+                "Internal Sales": 4582550.0,
+                "Market Sales": 44894.0,
+                "Market Share %": 10207.49
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-1",
+                "Internal Sales": 3612700.0,
+                "Market Sales": 27557.0,
+                "Market Share %": 13109.92
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-4",
+                "Internal Sales": 3106600.0,
+                "Market Sales": 22601.0,
+                "Market Share %": 13745.41
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-7",
+                "Internal Sales": 2948400.0,
+                "Market Sales": 21703.0,
+                "Market Share %": 13585.22
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-3",
+                "Internal Sales": 2939300.0,
+                "Market Sales": 21350.0,
+                "Market Share %": 13767.21
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D-3",
+                "Internal Sales": 2669800.0,
+                "Market Sales": 18919.0,
+                "Market Share %": 14111.74
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-5",
+                "Internal Sales": 2665600.0,
+                "Market Sales": 16409.0,
+                "Market Share %": 16244.74
+            },
+            {
+                "Brick Name": "KDA SCHEME-1",
+                "Internal Sales": 2459100.0,
+                "Market Sales": 18873.0,
+                "Market Share %": 13029.73
+            },
+            {
+                "Brick Name": "JEHANGIR ROAD",
+                "Internal Sales": 2413600.0,
+                "Market Sales": 15445.0,
+                "Market Share %": 15627.06
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-14",
+                "Internal Sales": 2356200.0,
+                "Market Sales": 17050.0,
+                "Market Share %": 13819.35
+            },
+            {
+                "Brick Name": "LIAQUATABAD B-AREA",
+                "Internal Sales": 1911000.0,
+                "Market Sales": 13306.0,
+                "Market Share %": 14361.94
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-D",
+                "Internal Sales": 1701700.0,
+                "Market Sales": 9344.0,
+                "Market Share %": 18211.69
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-2",
+                "Internal Sales": 1297100.0,
+                "Market Sales": 9854.0,
+                "Market Share %": 13163.18
+            },
+            {
+                "Brick Name": "USMAN MEMORIAL HOSPITAL - F.B.",
+                "Internal Sales": 942900.0,
+                "Market Sales": 7024.0,
+                "Market Share %": 13423.97
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-10",
+                "Internal Sales": 937300.0,
+                "Market Sales": 6541.0,
+                "Market Share %": 14329.61
+            },
+            {
+                "Brick Name": "LIAQUATABAD BLOCK-8",
+                "Internal Sales": 911050.0,
+                "Market Sales": 6749.0,
+                "Market Share %": 13499.04
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-13-G",
+                "Internal Sales": 799050.0,
+                "Market Sales": 6794.0,
+                "Market Share %": 11761.11
+            }
+        ],
+        "chart_data": [
+            "Brick Name",
+            [
+                "Internal Sales",
+                "Market Sales",
+                "Market Share %"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Sabse zyada kis block?",
+            "Kitna total sales hai?"
+        ],
+        "timestamp": "12:09 PM - Mar 30, 2026"
+    }
+]

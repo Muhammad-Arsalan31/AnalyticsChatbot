@@ -1,0 +1,135 @@
+[
+    {
+        "role": "user",
+        "content": "top 10 selling product",
+        "timestamp": "12:44 PM - Mar 30, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "### Top 10 Selling Products Summary\n**Business Performance:**\n* Total Revenue: PKR 3,514,311,635.50\n* Top Selling Product: **Product 3** with PKR 1,072,651,349.50 in revenue\n\n### Current vs Predicted Sales\n* **Current Sales:**\n + Product 3: PKR 1,072,651,349.50\n + Product 2: PKR 647,729,546.00\n + Product 4: PKR 647,691,758.00\n + Product 1: PKR 589,220,226.00\n + Product 5: PKR 503,462,706.00\n* **Predicted Sales (20% growth):**\n + Product 3: PKR 1,287,181,619.40\n + Product 2: PKR 777,275,045.20\n + Product 4: PKR 777,230,109.60\n + Product 1: PKR 707,064,271.20\n + Product 5: PKR 604,155,247.20\n\n### Strategic Recommendation\nCompany ko chahiye ke wo **Product 3** ki marketing aur sales strategies ko aur enhance karein taakay revenue mein aur growth mile.",
+        "sql": "SELECT \n  product_name, \n  SUM(total_amount) AS total_revenue\nFROM master_sale\nGROUP BY product_name\nORDER BY total_revenue DESC\nLIMIT 10;",
+        "data": [
+            {
+                "product_name": "Product 3",
+                "total_revenue": 1072651349.5
+            },
+            {
+                "product_name": "Product 2",
+                "total_revenue": 647729546.0
+            },
+            {
+                "product_name": "Product 4",
+                "total_revenue": 647691758.0
+            },
+            {
+                "product_name": "Product 1",
+                "total_revenue": 589220226.0
+            },
+            {
+                "product_name": "Product 5",
+                "total_revenue": 503462706.0
+            },
+            {
+                "product_name": "No Sale",
+                "total_revenue": 0.0
+            }
+        ],
+        "chart_data": [
+            "product_name",
+            [
+                "total_revenue"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "What is Product 3?",
+            "Why 20% growth?"
+        ],
+        "timestamp": "12:44 PM - Mar 30, 2026"
+    },
+    {
+        "role": "user",
+        "content": "highest selling product ke month wise data dikhow",
+        "timestamp": "12:49 PM - Mar 30, 2026"
+    },
+    {
+        "role": "assistant",
+        "content": "### Mahenay Ke Hisaab Se Bikne Wale Products Ka Summary\n**Bikne Wale Product 3 Ke Mahenay Ke Hisaab Se Data:**\n* **Monthly Revenue:**\n + January: PKR 81,499,299.50\n + February: PKR 83,572,650.00\n + March: PKR 86,560,950.00\n + April: PKR 92,939,000.00\n + May: PKR 94,173,100.00\n + June: PKR 83,944,350.00\n + July: PKR 85,308,650.00\n + August: PKR 89,897,500.00\n + September: PKR 92,655,150.00\n + October: PKR 92,534,750.00\n + November: PKR 96,492,550.00\n + December: PKR 93,073,400.00\n\n### Current vs Predicted Sales\n* **Current Sales:**\n + Product 3: PKR 1,072,651,349.50\n* **Predicted Sales (15% growth):**\n + Product 3: PKR 1,233,399,851.77\n\n### Strategic Recommendation\nProduct 3 ki sales ko aur badhawa dene ke liye, company ko apne marketing strategies ko enhance karna chahiye aur seasonal discounts offer karne ki planning karni chahiye.",
+        "sql": "SELECT \n  EXTRACT(MONTH FROM invoice_date) AS month,\n  product_name, \n  SUM(total_amount) AS total_revenue\nFROM master_sale\nWHERE product_name = (SELECT product_name FROM master_sale GROUP BY product_name ORDER BY SUM(total_amount) DESC LIMIT 1)\nGROUP BY 1, 2\nORDER BY month;",
+        "data": [
+            {
+                "month": 1.0,
+                "product_name": 0.0,
+                "total_revenue": 81499299.5
+            },
+            {
+                "month": 2.0,
+                "product_name": 0.0,
+                "total_revenue": 83572650.0
+            },
+            {
+                "month": 3.0,
+                "product_name": 0.0,
+                "total_revenue": 86560950.0
+            },
+            {
+                "month": 4.0,
+                "product_name": 0.0,
+                "total_revenue": 92939000.0
+            },
+            {
+                "month": 5.0,
+                "product_name": 0.0,
+                "total_revenue": 94173100.0
+            },
+            {
+                "month": 6.0,
+                "product_name": 0.0,
+                "total_revenue": 83944350.0
+            },
+            {
+                "month": 7.0,
+                "product_name": 0.0,
+                "total_revenue": 85308650.0
+            },
+            {
+                "month": 8.0,
+                "product_name": 0.0,
+                "total_revenue": 89897500.0
+            },
+            {
+                "month": 9.0,
+                "product_name": 0.0,
+                "total_revenue": 92655150.0
+            },
+            {
+                "month": 10.0,
+                "product_name": 0.0,
+                "total_revenue": 92534750.0
+            },
+            {
+                "month": 11.0,
+                "product_name": 0.0,
+                "total_revenue": 96492550.0
+            },
+            {
+                "month": 12.0,
+                "product_name": 0.0,
+                "total_revenue": 93073400.0
+            }
+        ],
+        "chart_data": [
+            "month",
+            [
+                "product_name",
+                "total_revenue"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "\"What caused sales dip?\"",
+            "\"Why 15% growth target?\""
+        ],
+        "timestamp": "12:49 PM - Mar 30, 2026"
+    }
+]
