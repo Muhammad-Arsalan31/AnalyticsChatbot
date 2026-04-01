@@ -1,0 +1,943 @@
+[
+    {
+        "role": "user",
+        "content": "Which brick has the highest internal units sold?",
+        "timestamp": "11:23 AM - Apr 01, 2026",
+        "msg_id": "u_1775042618_447"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\nyeh rakham ki maloomat hai ke F.B.AREA BLOCK-3 ne sab se zada **Internal Units Sold** kiya hai, jiska **Sales** quantity 783,091 hai.\n### Key Highlights\n* **Product Name:** F.B.AREA BLOCK-3\n* **Quantity Sold:** 783,091\n* **Highest Sales** wala product hai\n### Insight\nyeh Company ke **Growth** ke liye acha hai ke woh apne **Sales** strategy ko aur bhi behetr banaye, ta ke **Business** ko aur bhi zada **Profit** hasil ho.",
+        "sql": "WITH Internal AS (\n  SELECT ib.name, SUM(ms.product_quantity) as qty \n  FROM master_sale ms \n  JOIN customer_details cd ON ms.customer_id = cd.customer_id \n  JOIN ims_brick ib ON cd.ims_brick_id = ib.id \n  GROUP BY 1\n)\nSELECT name, qty \nFROM Internal \nORDER BY qty DESC \nLIMIT 1;",
+        "data": [
+            {
+                "name": "F.B.AREA BLOCK-3",
+                "qty": 783091.0
+            }
+        ],
+        "insight": "High Sales in F.B.AREA BLOCK-3, 783,091 units.\nFast Growth expected in this area.\nLow competition in Sales reported.",
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Kaun si **Sales** strategy?",
+            "Kitna **Profit** hai?"
+        ],
+        "timestamp": "11:24 AM - Apr 01, 2026",
+        "msg_id": "a_1775042644_133"
+    },
+    {
+        "role": "user",
+        "content": "managers list",
+        "timestamp": "11:39 AM - Apr 01, 2026",
+        "msg_id": "u_1775043545_592"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "sql": "SELECT name \nFROM managers;",
+        "data": [
+            {
+                "name": "WAQAS"
+            },
+            {
+                "name": "HAIDER ALI"
+            },
+            {
+                "name": "FARMAN ALI"
+            },
+            {
+                "name": "QASIM KHAN"
+            },
+            {
+                "name": "KAMRAN"
+            },
+            {
+                "name": "ALI ASGHAR"
+            },
+            {
+                "name": "NOMAN SABIR"
+            },
+            {
+                "name": "SHAHID NAZIR"
+            },
+            {
+                "name": "MAUZ"
+            },
+            {
+                "name": "HASEEB HASSAN"
+            },
+            {
+                "name": "S. FAHAD"
+            },
+            {
+                "name": "FAHAD SATTAR"
+            },
+            {
+                "name": "YASIR ALI"
+            },
+            {
+                "name": "SALMAN"
+            },
+            {
+                "name": "BABER HANIF"
+            },
+            {
+                "name": "M. MOOSA"
+            },
+            {
+                "name": "FAYYAZ"
+            },
+            {
+                "name": "ARSALAN"
+            },
+            {
+                "name": "BEHROZ"
+            },
+            {
+                "name": "MOAZZAM"
+            },
+            {
+                "name": "M. BASIT"
+            },
+            {
+                "name": "WALEED"
+            },
+            {
+                "name": "H. M. AHSAN"
+            },
+            {
+                "name": "KAMRAN"
+            },
+            {
+                "name": "FARHAN"
+            },
+            {
+                "name": "ABU BAKAR"
+            },
+            {
+                "name": "M. NOUMAN"
+            },
+            {
+                "name": "HASEEB"
+            },
+            {
+                "name": "BILAL"
+            },
+            {
+                "name": "S.M. TAQI"
+            },
+            {
+                "name": "OWAIS"
+            },
+            {
+                "name": "SAMEER"
+            },
+            {
+                "name": "FAISAL"
+            },
+            {
+                "name": "VACANT"
+            },
+            {
+                "name": "IBAD AHMED"
+            },
+            {
+                "name": "OBAID"
+            },
+            {
+                "name": "HASSAN"
+            },
+            {
+                "name": "M. USMAN"
+            },
+            {
+                "name": "MUSTAJAB"
+            },
+            {
+                "name": "AHMED"
+            },
+            {
+                "name": "AZAM"
+            },
+            {
+                "name": "NASEER"
+            },
+            {
+                "name": "HUZAIFA"
+            },
+            {
+                "name": "M. JUNAID"
+            },
+            {
+                "name": "ZAIN"
+            },
+            {
+                "name": "SHAMEEL"
+            },
+            {
+                "name": "HAMZA"
+            },
+            {
+                "name": "SHAHRUKH"
+            },
+            {
+                "name": "WASEEM"
+            },
+            {
+                "name": "MH HAMZA"
+            },
+            {
+                "name": "WAQAS"
+            },
+            {
+                "name": "AWAIS"
+            },
+            {
+                "name": "NAVEED"
+            },
+            {
+                "name": "M. MUBASHIR"
+            },
+            {
+                "name": "DANISH"
+            },
+            {
+                "name": "ASAD"
+            },
+            {
+                "name": "SHABAN"
+            },
+            {
+                "name": "NOUMAN"
+            },
+            {
+                "name": "Admin"
+            }
+        ],
+        "insight": "",
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [],
+        "timestamp": "11:39 AM - Apr 01, 2026",
+        "msg_id": "a_1775043550_318"
+    },
+    {
+        "role": "user",
+        "content": "waqas manager ki visits kis jagah pr hue ha",
+        "timestamp": "11:40 AM - Apr 01, 2026",
+        "msg_id": "u_1775043648_884"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\nWaqas manager ki **visits** ka data dekhne se pata chalta hai ke unhone kai jagahon par **visits** ki hain, jisme se **healthCentreId** 645, 807, 311, 296, 812, 746, 758, 94, 415, 6, 745, 834, 426, 101, aur 115 shamil hain. \n### Key Highlights\n* Total **visits**: 150\n* Maximum **visits** ek hi **healthCentreId** par: 10\n* **Health Centre** ke sab se zada **visits** wale id: 645, 807, 311, 296\n### Insight\nYeh Company ke **Growth** ke liye acha hai ke woh apne **visits** strategy ko aur bhi behetr banaye, ta ke **Business** ko aur bhi zada **Profit** hasil ho.",
+        "sql": "SELECT \n  \"healthCentreId\" \nFROM \n  doctor_plan \nWHERE \n  \"managerId\" IN (\n    SELECT \n      id \n    FROM \n      managers \n    WHERE \n      name ILIKE '%Waqas%'\n  );",
+        "data": [
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "645"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "807"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "311"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "812"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "746"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "758"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "94"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "415"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "6"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "745"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "834"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "296"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "426"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "101"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            },
+            {
+                "healthCentreId": "115"
+            }
+        ],
+        "insight": "yeh data table me 1 healthCentreId, 10,000 ki Sales nahi hai. \nyeh data table me Growth kam hai. \nyeh data table me Repeat Data hai.",
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Visits ke results kya?",
+            "Growth strategy kya hai?"
+        ],
+        "timestamp": "11:41 AM - Apr 01, 2026",
+        "msg_id": "a_1775043714_998"
+    },
+    {
+        "role": "user",
+        "content": "Health Centre ID 807 pr jo waqas ne visits kiye hain unki proper detail batow",
+        "timestamp": "11:52 AM - Apr 01, 2026",
+        "msg_id": "u_1775044350_450"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "sql": "SELECT \n  \"doctorId\", \n  \"healthCentreId\", \n  \"managerId\", \n  \"date\", \n  \"eventType\", \n  \"description\", \n  \"shift\", \n  \"latitude\", \n  \"longitude\", \n  \"inHealthCentre\", \n  \"distance_in_meters\", \n  \"visited_date\", \n  \"status\", \n  \"approval\"\nFROM \n  doctor_plan\nWHERE \n  \"healthCentreId\" = 807 \n  AND \"managerId\" IN (\n    SELECT \n      id \n    FROM \n      managers \n    WHERE \n      name ILIKE '%Waqas%'\n  );",
+        "data": [
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-01T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 1.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-04T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 1.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-07T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 0.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-14T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 1.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-18T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 0.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-22T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 0.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-24T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 0.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-26T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 0.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-28T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 0.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            },
+            {
+                "doctorId": "24",
+                "healthCentreId": 807.0,
+                "managerId": 1.0,
+                "date": "2025-12-30T00:00:00",
+                "eventType": 0.0,
+                "description": 0.0,
+                "shift": 0.0,
+                "latitude": 0.0,
+                "longitude": 0.0,
+                "inHealthCentre": 0.0,
+                "distance_in_meters": 0.0,
+                "visited_date": null,
+                "status": 0.0,
+                "approval": 0.0
+            }
+        ],
+        "insight": "yeh data 24 doctor ke 7 Face to Face Call Sales hain. \ninmein 5,000 se zada meters ki distance nahi hai. \nTotal 10 events hain, Sales Growth hai 0%.",
+        "chart_data": null,
+        "split_charts_metadata": {
+            "group_col": "doctorId",
+            "x_axis_col": "healthCentreId",
+            "y_metrics": [
+                "inHealthCentre"
+            ]
+        },
+        "follow_ups": [
+            "Is data up to date?"
+        ],
+        "timestamp": "11:52 AM - Apr 01, 2026",
+        "msg_id": "a_1775044360_583"
+    }
+]

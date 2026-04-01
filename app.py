@@ -367,41 +367,131 @@ if not st.session_state.username:
                 
         return False
 
-    # --- LOGIN PAGE UI ---
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.markdown("<h1 style='text-align: center; color: #4DA8DA;'>👤</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center;'>Login</h3>", unsafe_allow_html=True)
+    # --- PREMIUM LOGIN UI ---
+    st.markdown("""
+        <style>
+        [data-testid="stAppViewContainer"] {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            background-attachment: fixed;
+        }
+        .login-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            max-width: 450px;
+            margin: 50px auto;
+            text-align: center;
+        }
+        .stButton > button {
+            background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    st.markdown("<h1 style='color: white; font-family: Outfit, sans-serif; font-size: 2.5rem; margin-bottom: 0;'>👤</h1>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: white; font-family: Outfit, sans-serif;'>Intelligence Login</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #94a3b8;'>Pharma Insights & Strategy Portal</p>", unsafe_allow_html=True)
+    
+    with st.form("premium_login"):
+        user_input = st.text_input("Email / Username Address", placeholder="e.g. admin@pharma.com")
+        pass_input = st.text_input("Access Key", type="password", placeholder="••••••••")
+        st.write("")
+        submit = st.form_submit_button("SIGN IN TO DASHBOARD", use_container_width=True)
         
-        with st.form("login_form"):
-            user_input = st.text_input("Username", placeholder="👤 Email or Name")
-            pass_input = st.text_input("Password", type="password", placeholder="🔒 Password")
-            
-            submit = st.form_submit_button("LOGIN", use_container_width=True)
-            
-            if submit:
-                user_clean = user_input.strip()
-                if not user_clean:
-                    st.error("Please enter a username.")
-                elif verify_db_login(user_clean, pass_input):
-                    st.session_state.username = user_clean
-                    st.rerun()
-                else:
-                    st.error("Invalid Username or Password! (Hint: use 'admin' fallback)")
+        if submit:
+            user_clean = user_input.strip()
+            if not user_clean:
+                st.error("Access Denied: Please enter a username.")
+            elif verify_db_login(user_clean, pass_input):
+                st.session_state.username = user_clean
+                st.rerun()
+            else:
+                st.error("Authentication Failed! Check your credentials.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
-# ... CSS remains same ...
-
+# --- PREMIUM MAIN THEME & CSS ---
 st.markdown("""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+
 <style>
-    .main { background-color: #0e1117; color: #ffffff; }
-    .stTextInput > div > div > input { background-color: #262730; color: white; border-radius: 10px; }
-    .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
+    /* Global Overrides */
+    .main { 
+        background: #0f172a; 
+        color: #f8fafc; 
+        font-family: 'Inter', sans-serif;
+    }
+    
+    h1, h2, h3, .stButton { 
+        font-family: 'Outfit', sans-serif; 
+    }
+
+    /* Professional Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #1e293b !important;
+        border-right: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* Chat Elements */
+    .stChatMessage { 
+        border-radius: 16px !important; 
+        padding: 20px !important;
+        margin-bottom: 12px !important;
+        border: 1px solid rgba(255,255,255,0.05) !important;
+    }
+    
+    [data-testid="stChatMessage-user"] {
+        background: rgba(99, 102, 241, 0.1) !important;
+        border-left: 4px solid #6366f1 !important;
+    }
+    
+    [data-testid="stChatMessage-assistant"] {
+        background: rgba(30, 41, 59, 0.6) !important;
+        border-right: 4px solid #a855f7 !important;
+    }
+
+    /* Data Containers */
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    /* Metrics Highlighting */
+    .stMetric {
+        background: rgba(255,255,255,0.03);
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("💊 Pharma Intelligence ChatBot")
-st.caption("AI Agent with RAG (Retrieval-Augmented Generation)")
+st.markdown("<h1 style='color: white; margin-bottom: 0;'>💊 Pharma Intel Agent</h1>", unsafe_allow_html=True)
+st.caption("Strategic Decision Support with RAG Memory")
 st.divider()
 
 # --- SIDEBAR ---
@@ -443,8 +533,9 @@ with st.sidebar:
     with st.expander("📊 Data Health Check"):
         st.success("IMS Market Sales: 156k+ records")
         st.success("Internal Sales (Invoices): 55k+ records")
-        st.success("Doctors: 382 records")
-        st.warning("⚠️ Orders & Targets: 0 records")
+        st.success("Doctors: 211 records")
+        st.success("Sales Targets: 4,112 records")
+        st.warning("⚠️ Orders: 0 records")
     
     st.divider()
     if st.button("Clear History"):
@@ -465,11 +556,21 @@ def delete_message(msg_id):
             
     if target_idx != -1:
         # If it's an assistant message, delete it and its preceding user message
-        if st.session_state.messages[target_idx]["role"] == "assistant" and target_idx > 0:
-            st.session_state.messages.pop(target_idx)
-            st.session_state.messages.pop(target_idx - 1)
-        else:
-            st.session_state.messages.pop(target_idx)
+        if st.session_state.messages[target_idx]["role"] == "assistant":
+            if target_idx > 0 and st.session_state.messages[target_idx - 1]["role"] == "user":
+                # Message + Preceding Question
+                st.session_state.messages.pop(target_idx)
+                st.session_state.messages.pop(target_idx - 1)
+            else:
+                st.session_state.messages.pop(target_idx)
+        # If it's a user message, check if following message is the assistant's answer
+        elif st.session_state.messages[target_idx]["role"] == "user":
+            if target_idx < len(st.session_state.messages) - 1 and st.session_state.messages[target_idx + 1]["role"] == "assistant":
+                # Question + Following Answer
+                st.session_state.messages.pop(target_idx + 1)
+                st.session_state.messages.pop(target_idx)
+            else:
+                st.session_state.messages.pop(target_idx)
         
         # Save updated state
         save_session(st.session_state.current_session, st.session_state.messages)
@@ -779,7 +880,8 @@ if prompt:
                              "4. LARGE NUMBERS: Always use commas (e.g. PKR 3,500,000) and max 2 decimals.\n"
                              "5. LANGUAGE: Use Pakistani Roman Urdu for sentence structure, but STRICTLY use English for ALL business terminology (e.g., write 'Business Summary' and NOT 'Biznes Sammary', write 'Sales' and NOT 'Bikri').\n"
                              "6. INSIGHT: Always conclude with a 1-sentence strategic recommendation.\n"
-                             "7. STRICT RULE: NEVER refer to the user as 'Mamo'. Use respectful professional language."
+                             "7. NO LIST REPETITION: If the database result is a long list of names or categories (e.g. more than 10 items) that is already visible in the table, do NOT repeat all the names in your summary. Instead, just provide a count and a high-level overview.\n"
+                             "8. STRICT RULE: NEVER refer to the user as 'Mamo'. Use respectful professional language."
                         )
                         summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": sum_prompt}], timeout=30.0)
                         final_answer = summary_res.choices[0].message.content
@@ -827,7 +929,7 @@ if prompt:
                                 group_col = first_col
                                 x_axis_col = cols[1]
                                 # Blacklist for Y-axis metrics (ID, coordinates, status etc)
-                                forbidden_exact = ['id', 'status', 'eventType', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
+                                forbidden_exact = ['id', 'status', 'eventType', 'event_type', 'description', 'shift', 'approval', 'inHealthCentre', 'in_health_centre', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
                                 
                                 # Identify Metrics for Y-axis (excluding grouping, X columns, and forbidden columns)
                                 y_metrics = []
@@ -836,6 +938,9 @@ if prompt:
                                     if c in [group_col, x_axis_col] or c_lower in forbidden_exact:
                                         continue
                                     if c_lower.endswith('_id') or (c_lower.endswith('id') and len(c_lower) > 4):
+                                        continue
+                                    # Skip if column is all zeros
+                                    if df_numeric[c].sum() == 0:
                                         continue
                                     y_metrics.append(c)
                                 
@@ -857,13 +962,16 @@ if prompt:
                             else:
                                 # ❄️ NORMAL PLOT MODE (One bar per Category)
                                 x_col = first_col
-                                forbidden_exact = ['id', 'status', 'eventType', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
+                                forbidden_exact = ['id', 'status', 'eventType', 'event_type', 'description', 'shift', 'approval', 'inHealthCentre', 'in_health_centre', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
                                 y_cols = []
                                 for c in num_cols:
                                     c_lower = str(c).lower()
                                     if c == x_col or c_lower in forbidden_exact:
                                         continue
                                     if c_lower.endswith('_id') or (c_lower.endswith('id') and len(c_lower) > 4):
+                                        continue
+                                    # Skip if column is all zeros
+                                    if df_numeric[c].sum() == 0:
                                         continue
                                     y_cols.append(c)
                                 

@@ -16,7 +16,9 @@
   Always use `ILIKE` when searching these acronyms as users may not type exact dashes.
 - **Sales Database Mapping**:
   - **Doctor Sales**: In `master_sale`, doctors are recorded as `customer_name`. ALWAYS filter by `customer_type = 'Doctors'`. The column `doctor_name` does NOT exist.
-  - **Product Groups**: Use `product_group_name`. Note: In current mock data, only `Product Group 1` exists.
-  - **Karachi Mapping**: Karachi area is labeled as `TM - KHI` (e.g., `TM - KHI - 1`). Use `ILIKE '%KHI%'` when searching for Karachi.
+    - **CRITICAL SCHEMA MAPPING**: The `customers` table does NOT have a column named `customer_type`. It only contains `customer_type_id`.
+    - **JOIN RULE**: If you join `master_sale` with `customers` c, do NOT query `c.customer_type`. Use `m.customer_type` from `master_sale`.
+  - **Product Groups**: In current database, only `Product Group 1` exists. When a user asks for "Antibiotics" or "Antibiotic sales", use `Product Group 1`.
+  - **Karachi Mapping**: Karachi area is labeled as `TM - KHI` (e.g., `TM - KHI - 1`). Use `ILIKE '%KHI%'` or `ILIKE '%KARACHI%'` when searching for Karachi.
   - **Manager Filtering**: Use `area_manager_name` or `territory_manager_name` directly in `master_sale`.
   - **Dates**: Always use `invoice_date` (NOT `sale_date`). Use `month_number` (1-12) or `year_number` (e.g., 2024, 2025).

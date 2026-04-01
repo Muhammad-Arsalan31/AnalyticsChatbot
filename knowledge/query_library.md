@@ -102,9 +102,18 @@ SELECT
   customer_name AS "Doctor Name", 
   SUM(total_amount) AS "Total Sales"
 FROM master_sale 
-WHERE customer_type = 'Doctors'
+WHERE customer_type = 'Doctors' -- master_sale HAS this column directly
 GROUP BY 1
 ORDER BY 2 DESC
 LIMIT 10;
 ```
 **CRITICAL:** `master_sale` uses `customer_name` for doctors. NEVER use `doctor_name`.
+
+**IMPORTANT SCHEMA NOTE:** The table `customers` does NOT have any column named `customer_type`. The only tables with the `customer_type` label are `master_sale` (column `customer_type`) and `customer_types` (column `type`). When querying the `customers` table, you must join with `customer_types` on `customer_type_id = id`.
+```sql
+-- Correct way to get Doctor details from customers table
+SELECT c.name, ct.type 
+FROM customers c 
+JOIN customer_types ct ON c.customer_type_id = ct.id 
+WHERE ct.type = 'Doctors';
+```

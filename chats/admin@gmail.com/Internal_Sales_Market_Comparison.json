@@ -1,0 +1,108 @@
+[
+    {
+        "role": "user",
+        "content": "compare internal sales vs market sales",
+        "timestamp": "11:02 AM - Apr 01, 2026",
+        "msg_id": "u_1775041371_655"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\nInternal Sales aur Market Sales ki comparison ke liye, hum ne database se data retrieve kiya hai. \n**Key Findings:**\n* Internal Units: 2,883,580\n* IMS Market Units: 8,245,683\n**Units ki comparison:**\n* F.B.AREA BLOCK-3: Internal Units 783,091, IMS Market Units 2,459,629\n* GULSHAN-E-IQBAL BLOCK-5: Internal Units 585,494, IMS Market Units 1,756,297\n* F.B.AREA BLOCK-14: Internal Units 512,476, IMS Market Units 1,473,691\n* P.I.B. COLONY: Internal Units 507,616, IMS Market Units 1,520,200\n* F.B.AREA BLOCK-13: Internal Units 495,923, IMS Market Units 1,517,766\n### Revenue aur Sales Analysis\nYeh data humein batata hai ke Market Sales humare Internal Sales se 2.86 times zyada hai.\n### Strategic Recommendation\nCompany ko apne Sales Strategy ko revise karna chahiye taakay humare Internal Sales aur Market Sales ke beech ka gap kam ho sake.",
+        "sql": "WITH Internal AS (\n  SELECT ib.name, SUM(ms.product_quantity) as qty \n  FROM master_sale ms \n  JOIN customer_details cd ON ms.customer_id = cd.customer_id \n  JOIN ims_brick ib ON cd.ims_brick_id = ib.id \n  GROUP BY 1\n),\nMarket AS (\n  SELECT ib.name, SUM(s.unit) as qty \n  FROM ims_sale s \n  JOIN ims_brick ib ON s.\"brickId\" = ib.id \n  GROUP BY 1\n)\nSELECT \n  COALESCE(i.name, m.name) AS \"Brick Name\", \n  COALESCE(i.qty, 0) AS \"Internal Units\", \n  COALESCE(m.qty, 0) AS \"IMS Market Units\"\nFROM Internal i \nFULL OUTER JOIN Market m ON i.name = m.name\nORDER BY \"Internal Units\" DESC\nLIMIT 5;",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Internal Units": 783091.0,
+                "IMS Market Units": 2459629.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Units": 585494.0,
+                "IMS Market Units": 1756297.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-14",
+                "Internal Units": 512476.0,
+                "IMS Market Units": 1473691.0
+            },
+            {
+                "Brick Name": "P.I.B. COLONY",
+                "Internal Units": 507616.0,
+                "IMS Market Units": 1520200.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-13",
+                "Internal Units": 495923.0,
+                "IMS Market Units": 1517766.0
+            }
+        ],
+        "insight": "F.B.AREA BLOCK-3 mein Sales 2,459,629 hain. \nGrowth IMS Market Units mein dekha gaya. \nF.B.AREA BLOCK-3 ka Internal Units 783,091 hai.",
+        "chart_data": [
+            "Brick Name",
+            [
+                "Internal Units",
+                "IMS Market Units"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Why sales gap exists?",
+            "What causes low sales?"
+        ],
+        "timestamp": "11:03 AM - Apr 01, 2026",
+        "msg_id": "a_1775041423_712"
+    },
+    {
+        "role": "user",
+        "content": "What causes low sales?",
+        "timestamp": "12:30 PM - Apr 01, 2026",
+        "msg_id": "u_1775046636_119"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\nyeh data hum ne apne database se retrieve kiya hai aur **Sales** ki comparison ke liye analyze kiya hai. \n**Key Findings:**\n* **Internal Units**: 2,883,580\n* **IMS Market Units**: 8,245,683\n**Units ki comparison**:\n* Total 5 areas ki comparison ki gayi hai, jismein sab se zada **Internal Units** F.B.AREA BLOCK-3 me hai, jo ki 783,091 units hai.\n* **Market Sales** me bhi F.B.AREA BLOCK-3 sab se aage hai, jismein 2,459,629 units hai.\n**Insights:**\n* Yeh data show karta hai ke **Internal Sales** aur **Market Sales** me kafi difference hai, jo company ke **Growth** ko affect kar sakta hai.\n* Is difference ko kam karne ke liye, company ko apne **Sales** strategy ko review karna chahiye.\nYeh zaruri hai ke company apne **Sales** channel ko optimize kare aur **Market Sales** ko increase karne ke liye effective strategies implement kare.",
+        "sql": "WITH Internal AS (\n  SELECT ib.name, SUM(ms.product_quantity) as qty \n  FROM master_sale ms \n  JOIN customer_details cd ON ms.customer_id = cd.customer_id \n  JOIN ims_brick ib ON cd.ims_brick_id = ib.id \n  GROUP BY 1\n),\nMarket AS (\n  SELECT ib.name, SUM(s.unit) as qty \n  FROM ims_sale s \n  JOIN ims_brick ib ON s.\"brickId\" = ib.id \n  GROUP BY 1\n)\nSELECT \n  COALESCE(i.name, m.name) AS \"Brick Name\", \n  COALESCE(i.qty, 0) AS \"Internal Units\", \n  COALESCE(m.qty, 0) AS \"IMS Market Units\"\nFROM Internal i \nFULL OUTER JOIN Market m ON i.name = m.name\nORDER BY \"Internal Units\" DESC\nLIMIT 5;",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Internal Units": 783091.0,
+                "IMS Market Units": 2459629.0
+            },
+            {
+                "Brick Name": "GULSHAN-E-IQBAL BLOCK-5",
+                "Internal Units": 585494.0,
+                "IMS Market Units": 1756297.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-14",
+                "Internal Units": 512476.0,
+                "IMS Market Units": 1473691.0
+            },
+            {
+                "Brick Name": "P.I.B. COLONY",
+                "Internal Units": 507616.0,
+                "IMS Market Units": 1520200.0
+            },
+            {
+                "Brick Name": "F.B.AREA BLOCK-13",
+                "Internal Units": 495923.0,
+                "IMS Market Units": 1517766.0
+            }
+        ],
+        "insight": "F.B.AREA BLOCK-3 mein 2,459,629IMS Market Units hay.\nGulshan-E-Iqbal BLOCK-5 ka Sales 1,756,297 hay.\nF.B.AREA BLOCK-3 mein Growth sab se zyada hay.",
+        "chart_data": [
+            "Brick Name",
+            [
+                "Internal Units",
+                "IMS Market Units"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Why sales difference exist?",
+            "What next steps company?"
+        ],
+        "timestamp": "12:32 PM - Apr 01, 2026",
+        "msg_id": "a_1775046778_32"
+    }
+]
