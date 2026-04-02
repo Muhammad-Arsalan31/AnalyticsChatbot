@@ -39,59 +39,52 @@ def smart_format_dataframe(df: pd.DataFrame):
     """
     Returns:
         df_numeric  -> pure numeric (for charts / calculations)
-        df_display  -> formatted with commas strings (for st.dataframe UI)
+        df_display  -> formatted with commas/rounding (for st.dataframe UI)
     """
     if df.empty or len(df.columns) == 0:
         return df, df
         
     df_numeric = df.copy()
-    df_display = df.copy() # Start with original data to avoid data loss
+    df_display = df.copy()
 
-    # 🔹 Identify and convert numeric columns safely
-    num_cols = []
+    # Apply type conversion to Decimal columns immediately to prevent precision issues
     for col in df_numeric.columns:
-        # SKIP the first column - it's our X-axis category (e.g., Brick Name, Product)
-        if col == df_numeric.columns[0]:
-            continue
-            
-        # Prevent formatting date columns as raw comma-separated numbers
-        is_date_col = "date" in str(col).lower() or "time" in str(col).lower() or pd.api.types.is_datetime64_any_dtype(df_numeric[col])
-        if is_date_col:
+        if df_numeric[col].dtype == object:
             try:
-                # If loaded from JSON cache, it might be an epoch int in ms
-                if df_numeric[col].dtype == 'int64' or df_numeric[col].dtype == 'float64':
-                    if df_numeric[col].max() > 1000000000000:
-                        df_display[col] = pd.to_datetime(df_numeric[col], unit='ms').dt.strftime('%Y-%m-%d %I:%M %p')
-                    else:
-                        df_display[col] = pd.to_datetime(df_numeric[col], unit='s').dt.strftime('%Y-%m-%d %I:%M %p')
-                else:
-                    df_display[col] = pd.to_datetime(df_numeric[col]).dt.strftime('%Y-%m-%d')
+                df_numeric[col] = pd.to_numeric(df_numeric[col], errors='ignore')
             except:
                 pass
-            continue
+
+    # Identify and format numeric columns
+    for col in df_numeric.columns:
+        # Check if column should be treated as numeric metric
+        # Rule: Format if it's numeric type AND (not first column OR first column is a single value)
+        is_numeric_type = pd.api.types.is_numeric_dtype(df_numeric[col])
+        
+        # Heuristic for Category column: Usually first col if there are multiple cols
+        is_category_col = (col == df_numeric.columns[0] and len(df_numeric.columns) > 1)
+        
+        # Exceptions: If it's the first col but name contains 'sale', 'rev', 'price', 'total', format it anyway
+        is_explicit_metric = any(k in str(col).lower() for k in ["sale", "rev", "price", "total", "qty", "amount"])
+        
+        if is_numeric_type and (not is_category_col or is_explicit_metric):
+            # 1. Ensure numeric for calculations
+            df_numeric[col] = pd.to_numeric(df_numeric[col], errors='coerce').fillna(0).astype(float)
             
-        # Try to convert to numeric, if it fails, it's a category
-        df_numeric[col] = pd.to_numeric(df_numeric[col], errors='coerce').fillna(0).astype(float)
-        num_cols.append(col)
-
-    # 🔹 Apply formatting to display dataframe for numeric columns only
-    for col in num_cols:
-        # Detect large float vs integer
-        is_integer = (df_numeric[col].dropna() % 1 == 0).all()
-        if is_integer:
-            df_display[col] = df_numeric[col].apply(
-                lambda x: f"{int(x):,}" if pd.notnull(x) else ""
-            )
-        else:
-            df_display[col] = df_numeric[col].apply(
-                lambda x: f"{x:,.2f}" if pd.notnull(x) else ""
-            )
-
-    # Force the first column (Category) to be string ONLY if it's not a numeric-like time axis
-    first_col = df_numeric.columns[0]
-    is_time_series_col = any(k in first_col.lower() for k in ["month", "year", "date", "day", "week"])
-    if not is_time_series_col:
-        df_numeric[first_col] = df_numeric[first_col].astype(str)
+            # 2. Format for display (Round to 2 decimals, add commas)
+            # Check if all values are actually integers to avoid .00 suffix
+            is_all_int = (df_numeric[col] % 1 == 0).all()
+            if is_all_int:
+                df_display[col] = df_numeric[col].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "")
+            else:
+                df_display[col] = df_numeric[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+        
+        # Specialized Date Handling
+        elif "date" in str(col).lower() or "time" in str(col).lower():
+            try:
+                df_display[col] = pd.to_datetime(df_numeric[col]).dt.strftime('%Y-%m-%d')
+            except:
+                pass
 
     return df_numeric, df_display
 
