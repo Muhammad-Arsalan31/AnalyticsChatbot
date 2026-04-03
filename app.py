@@ -166,60 +166,110 @@ def get_chats_dir():
         os.makedirs(d)
     return d
 
+def upsert_db_chat(username, session_id, messages_json):
+    """Saves chat history to PostgreSQL for redundancy and cross-device access."""
+    try:
+        clean_url = DB_URL.split('?')[0] if DB_URL else ""
+        conn = psycopg2.connect(clean_url)
+        with conn.cursor() as cur:
+            # Postgres UPSERT (Insert or Update on Conflict)
+            query = """
+                INSERT INTO app_chat_history (username, session_id, history_json, updated_at)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (session_id) 
+                DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = CURRENT_TIMESTAMP;
+            """
+            cur.execute(query, (username, session_id, messages_json))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Save Warning: {e}")
+
 def save_session(session_id, messages):
     if not messages: return
-    # Find or generate a title based on the first user message
+    username = st.session_state.get("username", "default")
+    
+    # 1. Title Generation
     title = session_id
     if len(messages) >= 1:
         first_q = messages[0]["content"]
-        # If it's a new session, we might want to get a cleaner title from LLM
         if session_id.startswith("New_Session_"):
             try:
                 res = client.chat.completions.create(
                     model=LLM_MODEL,
-                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words). Output ONLY the 4 words, nothing else: {first_q}"}],
+                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words). Output ONLY the 4 words: {first_q}"}],
                     timeout=5.0
                 )
                 raw_title = res.choices[0].message.content.strip()
-                # Sanitize for valid OS filename (remove special chars, newlines)
                 clean_title = re.sub(r'[\\/*?:"<>|\n\r]+', "", raw_title)
                 title = clean_title.replace(" ", "_")[:50]
             except:
                 clean_fq = re.sub(r'[\\/*?:"<>|\n\r]+', "", first_q[:30])
                 title = clean_fq.replace(" ", "_")
     
-    file_path = os.path.join(get_chats_dir(), f"{title}.json")
-    # Save with dataframes converted to dict for JSON
+    # 2. Serialization
     serializable_msgs = []
     for m in messages:
         m_copy = m.copy()
         if "data" in m_copy and isinstance(m_copy["data"], pd.DataFrame):
             m_copy["data"] = m_copy["data"].to_dict(orient="records")
         serializable_msgs.append(m_copy)
-        
+    
+    msgs_json_str = json.dumps(serializable_msgs, cls=DecimalEncoder)
+    
+    # 3. Save to JSON File
+    file_path = os.path.join(get_chats_dir(), f"{title}.json")
     with open(file_path, "w") as f:
-        json.dump(serializable_msgs, f, indent=4, cls=DecimalEncoder)
+        f.write(msgs_json_str)
+    
+    # 4. Save to Database (New Feature!)
+    upsert_db_chat(username, title, msgs_json_str)
+    
     return title
 
 def load_session(filename):
-    with open(os.path.join(get_chats_dir(), filename), "r") as f:
+    username = st.session_state.get("username", "default")
+    title = filename.replace(".json", "")
+    full_path = os.path.join(get_chats_dir(), filename)
+    
+    msgs = None
+    
+    # Priority 1: Try Local JSON
+    if os.path.exists(full_path):
         try:
-            msgs = json.load(f)
+            with open(full_path, "r") as f:
+                msgs = json.load(f)
         except:
-            return []
-            
-        if isinstance(msgs, dict):
-            msgs = [msgs]
-        if not isinstance(msgs, list):
-            return []
-            
-        valid_msgs = []
-        for m in msgs:
-            if isinstance(m, dict):
-                if "data" in m and m["data"] is not None:
-                    m["data"] = pd.DataFrame(m["data"])
-                valid_msgs.append(m)
-        return valid_msgs
+            pass
+
+    # Priority 2: Fallback to Database if file missing/corrupt
+    if not msgs:
+        try:
+            clean_url = DB_URL.split('?')[0] if DB_URL else ""
+            conn = psycopg2.connect(clean_url)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT history_json FROM app_chat_history WHERE session_id = %s", (title,))
+                res = cur.fetchone()
+                if res and res['history_json']:
+                    msgs = res['history_json']
+                    # Sync back to local if possible
+                    with open(full_path, "w") as f:
+                        json.dump(msgs, f, cls=DecimalEncoder)
+            conn.close()
+        except:
+            pass
+
+    if not msgs or not isinstance(msgs, list):
+        return []
+
+    # Final cleanup of DataFrames
+    valid_msgs = []
+    for m in msgs:
+        if isinstance(m, dict):
+            if "data" in m and m["data"] is not None:
+                m["data"] = pd.DataFrame(m["data"])
+            valid_msgs.append(m)
+    return valid_msgs
 
 # --- DATABASE ENGINE ---
 def run_sql_query(query: str):
@@ -487,6 +537,18 @@ st.markdown("<h1 style='color: white; margin-bottom: 0;'>💊 Pharma Intel Agent
 st.caption("Strategic Decision Support with RAG Memory")
 st.divider()
 
+def delete_db_chat(session_id):
+    """Removes chat history from PostgreSQL."""
+    try:
+        clean_url = DB_URL.split('?')[0] if DB_URL else ""
+        conn = psycopg2.connect(clean_url)
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM app_chat_history WHERE session_id = %s", (session_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Delete Warning: {e}")
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.header(f"🧑‍💼 Welcome, {st.session_state.username}")
@@ -514,13 +576,20 @@ with st.sidebar:
                     st.rerun()
             with col2:
                 if st.button("🗑️ Delete"):
+                    session_title = selected_chat.replace(".json", "")
                     file_to_del = os.path.join(get_chats_dir(), selected_chat)
+                    
+                    # 1. Delete Local JSON
                     if os.path.exists(file_to_del):
                         os.remove(file_to_del)
-                        st.session_state.messages = []
-                        st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
-                        st.toast(f"Deleted {selected_chat}")
-                        st.rerun()
+                    
+                    # 2. Delete from Database (New Sync!)
+                    delete_db_chat(session_title)
+                    
+                    st.session_state.messages = []
+                    st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
+                    st.toast(f"Deleted {selected_chat} from Local & DB")
+                    st.rerun()
     
     st.divider()
     with st.expander("📊 Data Health Check"):
