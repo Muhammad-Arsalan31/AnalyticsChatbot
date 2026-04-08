@@ -638,6 +638,11 @@ def delete_message(msg_id):
         save_session(st.session_state.current_session, st.session_state.messages)
         st.rerun()
 
+# --- APP NAVIGATION & INPUTS ---
+st.session_state.prompt_trigger = st.session_state.get("prompt_trigger", None)
+user_input = st.chat_input("Ask about your pharma data...")
+prompt = user_input or st.session_state.prompt_trigger
+
 # --- STARTER QUESTIONS (Show only if no messages) ---
 if not st.session_state.messages:
     st.write("### 💡 Start with a sample report:")
@@ -661,7 +666,7 @@ if not st.session_state.messages:
         with cols[i % 2]:
             st.button(s, key=f"starter_{s}", on_click=submit_question, args=(s,))
 
-# --- CHAT INTERFACE ---
+# --- CHAT MESSAGES ---
 for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -669,42 +674,26 @@ for idx, message in enumerate(st.session_state.messages):
         m_id = message.get("msg_id", f"static_{idx}")
         
         # --- Compact Header for SQL, Download & Delete ---
-        header_cols = st.columns([4, 1, 1])
-        
-        with header_cols[2]:
-            if st.button("🗑️", key=f"del_{m_id}", help="Delete this message"):
-                delete_message(m_id)
-
-        if "timestamp" in message:
-            st.caption(f"🕒 {message['timestamp']}")
-        
-        with header_cols[0]:
-            if "sql" in message and message["sql"]:
-                with st.expander("🛠️ Show SQL Logic (Debug)"):
-                    st.code(message["sql"], language="sql")
-        
-        if "data" in message:
+        if "data" in message and message["data"] is not None:
             df_raw = pd.DataFrame(message["data"])
             df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
             
-            # Place Download Button in the right column if data exists
+            header_cols = st.columns([1, 1, 4])
+            with header_cols[0]:
+                if st.button("🗑️", key=f"del_{m_id}", help="Delete"):
+                    delete_message(m_id)
+                    st.rerun()
             with header_cols[1]:
                 csv = df_display_hist.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 CSV",
-                    data=csv,
-                    file_name=f"data_export_{idx}.csv",
-                    mime="text/csv",
-                    key=f"dl_{idx}"
-                )
-
-            # Table use formatted
+                st.download_button(label="📥 CSV", data=csv, file_name=f"data_{idx}.csv", key=f"dl_{idx}")
+            
+            # --- Table Display ---
             st.dataframe(df_display_hist, use_container_width=True)
             
             if "insight" in message and message["insight"]:
                 st.info(f"💡 **AI Insights:**\n{message['insight']}")
             
-            # --- Historical Charts (Support for Split Charts + Single Plots) ---
+            # --- CHART RENDERING (RESTORED) ---
             split_meta = message.get("split_charts_metadata")
             if split_meta:
                 group_col = split_meta["group_col"]
@@ -713,42 +702,25 @@ for idx, message in enumerate(st.session_state.messages):
                 unique_cats = df_numeric_hist[group_col].unique()
                 for i, cat_val in enumerate(unique_cats[:5]):
                     subset = df_numeric_hist[df_numeric_hist[group_col] == cat_val].copy()
-                    plot_smart_chart(
-                        subset, 
-                        x_axis_col, 
-                        y_metrics, 
-                        f"📊 {cat_val}: {', '.join(y_metrics)}", 
-                        f"chart_hist_{idx}_{i}"
-                    )
+                    plot_smart_chart(subset, x_axis_col, y_metrics, f"📊 {cat_val} Analysis", f"ch_{idx}_{i}")
             elif message.get("chart_data") is not None:
                 x_col, y_cols = message["chart_data"]
-                # Filter to ensure Y columns exist and are numeric
                 y_cols_valid = [c for c in y_cols if c in df_numeric_hist.columns]
                 if y_cols_valid:
-                    plot_smart_chart(
-                        df_numeric_hist, 
-                        x_col, 
-                        y_cols_valid, 
-                        f"History: {', '.join(y_cols_valid)}", 
-                        f"chart_hist_{idx}"
-                    )
+                    plot_smart_chart(df_numeric_hist, x_col, y_cols_valid, f"Trends: {', '.join(y_cols_valid)}", f"ch_{idx}")
         
-        # Display FOLLOW-UP buttons if they exist in the message metadata
+        # Display FOLLOW-UP buttons
         if "follow_ups" in message and message["follow_ups"] and idx == len(st.session_state.messages) - 1:
             st.write("---")
             st.write("🔍 **Suggested Follow-ups:**")
-            num_follow_ups = len(message["follow_ups"])
-            if num_follow_ups > 0:
-                f_cols = st.columns(num_follow_ups)
+            num_f = len(message["follow_ups"])
+            if num_f > 0:
+                f_cols = st.columns(num_f)
                 for f_idx, f_text in enumerate(message["follow_ups"]):
                     with f_cols[f_idx]:
-                        if st.button(f_text, key=f"follow_{idx}_{f_idx}"):
+                        if st.button(f_text, key=f"f_{idx}_{f_idx}"):
                             submit_question(f_text)
                             st.rerun()
-
-# Use either chat_input or a click from starters/follow-ups
-user_input = st.chat_input("Ask about your pharma data...")
-prompt = user_input or st.session_state.prompt_trigger
 
 if prompt:
     st.session_state.prompt_trigger = None # Reset

@@ -23,5 +23,7 @@
     "which brick has a highest sale": "SELECT \n  ib.name AS \"Brick Name\", \n  SUM(is_.unit) AS \"Total Sales\"\nFROM \n  ims_sale is_ \n  JOIN ims_brick ib ON is_.\"brickId\" = ib.id\nGROUP BY \n  ib.name\nORDER BY \n  \"Total Sales\" DESC\nLIMIT 1;",
     "which 3 products have the highest invoice quantity?": "SELECT product_name, SUM(product_quantity) as total_qty\nFROM master_sale\nGROUP BY product_name\nORDER BY total_qty DESC\nLIMIT 3;",
     "doctors ki age?": "SELECT \n  id, name\nFROM \n  doctors\nWHERE \n  id IN (SELECT id FROM doctors)\nLIMIT 10;",
-    "list top 5 doctors by visit count in doctor_plan": "SELECT \n  d.name, \n  COUNT(dp.\"id\") AS \"Visit Count\"\nFROM \n  doctor_plan dp\nJOIN \n  doctors d ON dp.\"doctorId\" = d.id\nGROUP BY \n  d.name\nORDER BY \n  \"Visit Count\" DESC\nLIMIT 5;"
+    "list top 5 doctors by visit count in doctor_plan": "SELECT \n  d.name, \n  COUNT(dp.\"id\") AS \"Visit Count\"\nFROM \n  doctor_plan dp\nJOIN \n  doctors d ON dp.\"doctorId\" = d.id\nGROUP BY \n  d.name\nORDER BY \n  \"Visit Count\" DESC\nLIMIT 5;",
+    "show me top 3 invoice by quantity": "SELECT \n  id, \n  product_quantity\nFROM \n  invoice_details\nORDER BY \n  product_quantity DESC\nLIMIT 3;",
+    "by revenue": "SELECT \n  id, \n  product_id, \n  invoice_id, \n  product_quantity, \n  product_price, \n  product_quantity * product_price AS revenue\nFROM \n  invoice_details\nORDER BY \n  revenue DESC\nLIMIT 3;"
 }
