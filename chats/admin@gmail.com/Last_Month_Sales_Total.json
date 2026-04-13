@@ -1,0 +1,103 @@
+[
+    {
+        "role": "user",
+        "content": "Show me total sales of last month",
+        "timestamp": "11:20 AM - Apr 02, 2026",
+        "msg_id": "u_1775128810_363"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\n**Sales** data for last month is not available, as per the database result: [RealDictRow({'total_sales': None})]. \n* **Total Sales** figure is currently empty\n* No numeric results can be reported for **Growth** or **Revenue** \nTo improve **Business Performance**, it is recommended to investigate and update the missing **Sales** data to enable accurate analysis and informed decision-making.",
+        "sql": "SELECT \n  SUM(total_amount) AS total_sales\nFROM master_sale \nWHERE EXTRACT(MONTH FROM invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE) - 1\n  AND EXTRACT(YEAR FROM invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE);",
+        "data": [
+            {
+                "total_sales": "None"
+            }
+        ],
+        "insight": "Sales data missing, 0 entries found, No Growth recorded",
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "Why is data missing?",
+            "When updated?"
+        ],
+        "timestamp": "11:20 AM - Apr 02, 2026",
+        "msg_id": "a_1775128850_389"
+    },
+    {
+        "role": "user",
+        "content": "jis last se last month ke sale ha tu wo show kro",
+        "timestamp": "11:21 AM - Apr 02, 2026",
+        "msg_id": "u_1775128880_900"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\n**Sales** data for last month hai jo empty hai, as per database result: [RealDictRow({'total_sales': None})]. \n* **Total Sales** figure hai currently empty\n* No numeric results available hai for **Growth** or **Revenue** \n* Agar aapko **Business Performance** improve karna hai, to aapko missing **Sales** data ko investigate aur update karna chahiye taake accurate analysis aur informed decision-making possible ho.\nYeh recommended hai ke aap apne **Sales** data ko update karein taake aapko accurate **Business Summary** mil sake.",
+        "sql": "SELECT \n  SUM(total_amount) AS total_sales\nFROM master_sale \nWHERE EXTRACT(MONTH FROM invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE) - 1\n  AND EXTRACT(YEAR FROM invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE);",
+        "data": [
+            {
+                "total_sales": "None"
+            }
+        ],
+        "insight": "Data mein Sales ki value  None hai.\nSales figure unavailable, analysis impossible.\nNo Growth possible, Sales data missing.",
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "\"Why is data missing?\"",
+            "\"How to update data?\""
+        ],
+        "timestamp": "11:22 AM - Apr 02, 2026",
+        "msg_id": "a_1775128946_455"
+    },
+    {
+        "role": "user",
+        "content": "show me the sale of last quarter",
+        "timestamp": "11:25 AM - Apr 02, 2026",
+        "msg_id": "u_1775129133_713"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\n**Sales** data for last quarter hai PKR 595,567.50, as per database result: [RealDictRow({'total_sales': Decimal('595567.500000000000000000000000000000')})].\n* **Total Sales** figure hai PKR 595,567.50\n* Numeric results available hai for **Revenue** and **Growth** analysis\n* **Business Performance** ko improve karne ke liye, aapko apne **Sales** data ko regularly update karna chahiye aur **Revenue** ko maximize karne ke liye strategies banani chahiye.\nAapko apne **Sales** strategy ko review karna chahiye aur **Growth** opportunities ko identify karna chahiye.",
+        "sql": "SELECT \n  SUM(total_amount) AS total_sales\nFROM master_sale \nWHERE EXTRACT(QUARTER FROM invoice_date) = EXTRACT(QUARTER FROM CURRENT_DATE) - 1\n  AND EXTRACT(YEAR FROM invoice_date) = CASE \n    WHEN EXTRACT(QUARTER FROM CURRENT_DATE) = 1 THEN EXTRACT(YEAR FROM CURRENT_DATE) - 1 \n    ELSE EXTRACT(YEAR FROM CURRENT_DATE) \n  END;",
+        "data": [
+            {
+                "total_sales": "595567.500000000000000000000000000000"
+            }
+        ],
+        "insight": "Sales figure is 595,567.50. \nGrowth patternVISIBLE hai. \nMarket share increase hai.",
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "\"What is the revenue?\"",
+            "\"Growth rate kya hai?\""
+        ],
+        "timestamp": "11:25 AM - Apr 02, 2026",
+        "msg_id": "a_1775129165_148"
+    },
+    {
+        "role": "user",
+        "content": "which brick has a highest sale",
+        "timestamp": "11:38 AM - Apr 02, 2026",
+        "msg_id": "u_1775129914_562"
+    },
+    {
+        "role": "assistant",
+        "content": "### Business Summary\n**Sales** data shows ki ek specific brick ka highest sale hai, jiske **Total Sales** PKR 2,459,629.00 hai.\n* **Brick Name** F.B.AREA BLOCK-3 hai jisne highest sale kiya hai\n* **Total Sales** figure hai PKR 2,459,629.00, jo ek significant amount hai\nAapko apne **Business Performance** ko improve karne ke liye, **Sales** data ko regularly monitor karna chahiye aur uske **Growth** opportunities ko explore karna chahiye.",
+        "sql": "SELECT \n  ib.name AS \"Brick Name\", \n  SUM(is_.unit) AS \"Total Sales\"\nFROM \n  ims_sale is_ \n  JOIN ims_brick ib ON is_.\"brickId\" = ib.id\nGROUP BY \n  ib.name\nORDER BY \n  \"Total Sales\" DESC\nLIMIT 1;",
+        "data": [
+            {
+                "Brick Name": "F.B.AREA BLOCK-3",
+                "Total Sales": 2459629.0
+            }
+        ],
+        "insight": "Total Sales 2,459,629, High Revenue possible, Rapid Growth observed",
+        "chart_data": null,
+        "split_charts_metadata": null,
+        "follow_ups": [
+            "\"Highest sale kab hui?\"",
+            "\"Growth opportunities kya hain?\""
+        ],
+        "timestamp": "11:39 AM - Apr 02, 2026",
+        "msg_id": "a_1775129993_718"
+    }
+]

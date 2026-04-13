@@ -39,59 +39,52 @@ def smart_format_dataframe(df: pd.DataFrame):
     """
     Returns:
         df_numeric  -> pure numeric (for charts / calculations)
-        df_display  -> formatted with commas strings (for st.dataframe UI)
+        df_display  -> formatted with commas/rounding (for st.dataframe UI)
     """
     if df.empty or len(df.columns) == 0:
         return df, df
         
     df_numeric = df.copy()
-    df_display = df.copy() # Start with original data to avoid data loss
+    df_display = df.copy()
 
-    # 🔹 Identify and convert numeric columns safely
-    num_cols = []
+    # Apply type conversion to Decimal columns immediately to prevent precision issues
     for col in df_numeric.columns:
-        # SKIP the first column - it's our X-axis category (e.g., Brick Name, Product)
-        if col == df_numeric.columns[0]:
-            continue
-            
-        # Prevent formatting date columns as raw comma-separated numbers
-        is_date_col = "date" in str(col).lower() or "time" in str(col).lower() or pd.api.types.is_datetime64_any_dtype(df_numeric[col])
-        if is_date_col:
+        if df_numeric[col].dtype == object:
             try:
-                # If loaded from JSON cache, it might be an epoch int in ms
-                if df_numeric[col].dtype == 'int64' or df_numeric[col].dtype == 'float64':
-                    if df_numeric[col].max() > 1000000000000:
-                        df_display[col] = pd.to_datetime(df_numeric[col], unit='ms').dt.strftime('%Y-%m-%d %I:%M %p')
-                    else:
-                        df_display[col] = pd.to_datetime(df_numeric[col], unit='s').dt.strftime('%Y-%m-%d %I:%M %p')
-                else:
-                    df_display[col] = pd.to_datetime(df_numeric[col]).dt.strftime('%Y-%m-%d')
+                df_numeric[col] = pd.to_numeric(df_numeric[col], errors='ignore')
             except:
                 pass
-            continue
+
+    # Identify and format numeric columns
+    for col in df_numeric.columns:
+        # Check if column should be treated as numeric metric
+        # Rule: Format if it's numeric type AND (not first column OR first column is a single value)
+        is_numeric_type = pd.api.types.is_numeric_dtype(df_numeric[col])
+        
+        # Heuristic for Category column: Usually first col if there are multiple cols
+        is_category_col = (col == df_numeric.columns[0] and len(df_numeric.columns) > 1)
+        
+        # Exceptions: If it's the first col but name contains 'sale', 'rev', 'price', 'total', format it anyway
+        is_explicit_metric = any(k in str(col).lower() for k in ["sale", "rev", "price", "total", "qty", "amount"])
+        
+        if is_numeric_type and (not is_category_col or is_explicit_metric):
+            # 1. Ensure numeric for calculations
+            df_numeric[col] = pd.to_numeric(df_numeric[col], errors='coerce').fillna(0).astype(float)
             
-        # Try to convert to numeric, if it fails, it's a category
-        df_numeric[col] = pd.to_numeric(df_numeric[col], errors='coerce').fillna(0).astype(float)
-        num_cols.append(col)
-
-    # 🔹 Apply formatting to display dataframe for numeric columns only
-    for col in num_cols:
-        # Detect large float vs integer
-        is_integer = (df_numeric[col].dropna() % 1 == 0).all()
-        if is_integer:
-            df_display[col] = df_numeric[col].apply(
-                lambda x: f"{int(x):,}" if pd.notnull(x) else ""
-            )
-        else:
-            df_display[col] = df_numeric[col].apply(
-                lambda x: f"{x:,.2f}" if pd.notnull(x) else ""
-            )
-
-    # Force the first column (Category) to be string ONLY if it's not a numeric-like time axis
-    first_col = df_numeric.columns[0]
-    is_time_series_col = any(k in first_col.lower() for k in ["month", "year", "date", "day", "week"])
-    if not is_time_series_col:
-        df_numeric[first_col] = df_numeric[first_col].astype(str)
+            # 2. Format for display (Round to 2 decimals, add commas)
+            # Check if all values are actually integers to avoid .00 suffix
+            is_all_int = (df_numeric[col] % 1 == 0).all()
+            if is_all_int:
+                df_display[col] = df_numeric[col].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "")
+            else:
+                df_display[col] = df_numeric[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
+        
+        # Specialized Date Handling
+        elif "date" in str(col).lower() or "time" in str(col).lower():
+            try:
+                df_display[col] = pd.to_datetime(df_numeric[col]).dt.strftime('%Y-%m-%d')
+            except:
+                pass
 
     return df_numeric, df_display
 
@@ -173,60 +166,110 @@ def get_chats_dir():
         os.makedirs(d)
     return d
 
+def upsert_db_chat(username, session_id, messages_json):
+    """Saves chat history to PostgreSQL for redundancy and cross-device access."""
+    try:
+        clean_url = DB_URL.split('?')[0] if DB_URL else ""
+        conn = psycopg2.connect(clean_url)
+        with conn.cursor() as cur:
+            # Postgres UPSERT (Insert or Update on Conflict)
+            query = """
+                INSERT INTO app_chat_history (username, session_id, history_json, updated_at)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (session_id) 
+                DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = CURRENT_TIMESTAMP;
+            """
+            cur.execute(query, (username, session_id, messages_json))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Save Warning: {e}")
+
 def save_session(session_id, messages):
     if not messages: return
-    # Find or generate a title based on the first user message
+    username = st.session_state.get("username", "default")
+    
+    # 1. Title Generation
     title = session_id
     if len(messages) >= 1:
         first_q = messages[0]["content"]
-        # If it's a new session, we might want to get a cleaner title from LLM
         if session_id.startswith("New_Session_"):
             try:
                 res = client.chat.completions.create(
                     model=LLM_MODEL,
-                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words). Output ONLY the 4 words, nothing else: {first_q}"}],
+                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words). Output ONLY the 4 words: {first_q}"}],
                     timeout=5.0
                 )
                 raw_title = res.choices[0].message.content.strip()
-                # Sanitize for valid OS filename (remove special chars, newlines)
                 clean_title = re.sub(r'[\\/*?:"<>|\n\r]+', "", raw_title)
                 title = clean_title.replace(" ", "_")[:50]
             except:
                 clean_fq = re.sub(r'[\\/*?:"<>|\n\r]+', "", first_q[:30])
                 title = clean_fq.replace(" ", "_")
     
-    file_path = os.path.join(get_chats_dir(), f"{title}.json")
-    # Save with dataframes converted to dict for JSON
+    # 2. Serialization
     serializable_msgs = []
     for m in messages:
         m_copy = m.copy()
         if "data" in m_copy and isinstance(m_copy["data"], pd.DataFrame):
             m_copy["data"] = m_copy["data"].to_dict(orient="records")
         serializable_msgs.append(m_copy)
-        
+    
+    msgs_json_str = json.dumps(serializable_msgs, cls=DecimalEncoder)
+    
+    # 3. Save to JSON File
+    file_path = os.path.join(get_chats_dir(), f"{title}.json")
     with open(file_path, "w") as f:
-        json.dump(serializable_msgs, f, indent=4, cls=DecimalEncoder)
+        f.write(msgs_json_str)
+    
+    # 4. Save to Database (New Feature!)
+    upsert_db_chat(username, title, msgs_json_str)
+    
     return title
 
 def load_session(filename):
-    with open(os.path.join(get_chats_dir(), filename), "r") as f:
+    username = st.session_state.get("username", "default")
+    title = filename.replace(".json", "")
+    full_path = os.path.join(get_chats_dir(), filename)
+    
+    msgs = None
+    
+    # Priority 1: Try Local JSON
+    if os.path.exists(full_path):
         try:
-            msgs = json.load(f)
+            with open(full_path, "r") as f:
+                msgs = json.load(f)
         except:
-            return []
-            
-        if isinstance(msgs, dict):
-            msgs = [msgs]
-        if not isinstance(msgs, list):
-            return []
-            
-        valid_msgs = []
-        for m in msgs:
-            if isinstance(m, dict):
-                if "data" in m and m["data"] is not None:
-                    m["data"] = pd.DataFrame(m["data"])
-                valid_msgs.append(m)
-        return valid_msgs
+            pass
+
+    # Priority 2: Fallback to Database if file missing/corrupt
+    if not msgs:
+        try:
+            clean_url = DB_URL.split('?')[0] if DB_URL else ""
+            conn = psycopg2.connect(clean_url)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT history_json FROM app_chat_history WHERE session_id = %s", (title,))
+                res = cur.fetchone()
+                if res and res['history_json']:
+                    msgs = res['history_json']
+                    # Sync back to local if possible
+                    with open(full_path, "w") as f:
+                        json.dump(msgs, f, cls=DecimalEncoder)
+            conn.close()
+        except:
+            pass
+
+    if not msgs or not isinstance(msgs, list):
+        return []
+
+    # Final cleanup of DataFrames
+    valid_msgs = []
+    for m in msgs:
+        if isinstance(m, dict):
+            if "data" in m and m["data"] is not None:
+                m["data"] = pd.DataFrame(m["data"])
+            valid_msgs.append(m)
+    return valid_msgs
 
 # --- DATABASE ENGINE ---
 def run_sql_query(query: str):
@@ -494,6 +537,18 @@ st.markdown("<h1 style='color: white; margin-bottom: 0;'>💊 Pharma Intel Agent
 st.caption("Strategic Decision Support with RAG Memory")
 st.divider()
 
+def delete_db_chat(session_id):
+    """Removes chat history from PostgreSQL."""
+    try:
+        clean_url = DB_URL.split('?')[0] if DB_URL else ""
+        conn = psycopg2.connect(clean_url)
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM app_chat_history WHERE session_id = %s", (session_id,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"DB Delete Warning: {e}")
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.header(f"🧑‍💼 Welcome, {st.session_state.username}")
@@ -521,13 +576,20 @@ with st.sidebar:
                     st.rerun()
             with col2:
                 if st.button("🗑️ Delete"):
+                    session_title = selected_chat.replace(".json", "")
                     file_to_del = os.path.join(get_chats_dir(), selected_chat)
+                    
+                    # 1. Delete Local JSON
                     if os.path.exists(file_to_del):
                         os.remove(file_to_del)
-                        st.session_state.messages = []
-                        st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
-                        st.toast(f"Deleted {selected_chat}")
-                        st.rerun()
+                    
+                    # 2. Delete from Database (New Sync!)
+                    delete_db_chat(session_title)
+                    
+                    st.session_state.messages = []
+                    st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
+                    st.toast(f"Deleted {selected_chat} from Local & DB")
+                    st.rerun()
     
     st.divider()
     with st.expander("📊 Data Health Check"):
@@ -576,6 +638,11 @@ def delete_message(msg_id):
         save_session(st.session_state.current_session, st.session_state.messages)
         st.rerun()
 
+# --- APP NAVIGATION & INPUTS ---
+st.session_state.prompt_trigger = st.session_state.get("prompt_trigger", None)
+user_input = st.chat_input("Ask about your pharma data...")
+prompt = user_input or st.session_state.prompt_trigger
+
 # --- STARTER QUESTIONS (Show only if no messages) ---
 if not st.session_state.messages:
     st.write("### 💡 Start with a sample report:")
@@ -599,7 +666,7 @@ if not st.session_state.messages:
         with cols[i % 2]:
             st.button(s, key=f"starter_{s}", on_click=submit_question, args=(s,))
 
-# --- CHAT INTERFACE ---
+# --- CHAT MESSAGES ---
 for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -607,42 +674,26 @@ for idx, message in enumerate(st.session_state.messages):
         m_id = message.get("msg_id", f"static_{idx}")
         
         # --- Compact Header for SQL, Download & Delete ---
-        header_cols = st.columns([4, 1, 1])
-        
-        with header_cols[2]:
-            if st.button("🗑️", key=f"del_{m_id}", help="Delete this message"):
-                delete_message(m_id)
-
-        if "timestamp" in message:
-            st.caption(f"🕒 {message['timestamp']}")
-        
-        with header_cols[0]:
-            if "sql" in message and message["sql"]:
-                with st.expander("🛠️ Show SQL Logic (Debug)"):
-                    st.code(message["sql"], language="sql")
-        
-        if "data" in message:
+        if "data" in message and message["data"] is not None:
             df_raw = pd.DataFrame(message["data"])
             df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
             
-            # Place Download Button in the right column if data exists
+            header_cols = st.columns([1, 1, 4])
+            with header_cols[0]:
+                if st.button("🗑️", key=f"del_{m_id}", help="Delete"):
+                    delete_message(m_id)
+                    st.rerun()
             with header_cols[1]:
                 csv = df_display_hist.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 CSV",
-                    data=csv,
-                    file_name=f"data_export_{idx}.csv",
-                    mime="text/csv",
-                    key=f"dl_{idx}"
-                )
-
-            # Table use formatted
+                st.download_button(label="📥 CSV", data=csv, file_name=f"data_{idx}.csv", key=f"dl_{idx}")
+            
+            # --- Table Display ---
             st.dataframe(df_display_hist, use_container_width=True)
             
             if "insight" in message and message["insight"]:
                 st.info(f"💡 **AI Insights:**\n{message['insight']}")
             
-            # --- Historical Charts (Support for Split Charts + Single Plots) ---
+            # --- CHART RENDERING (RESTORED) ---
             split_meta = message.get("split_charts_metadata")
             if split_meta:
                 group_col = split_meta["group_col"]
@@ -651,42 +702,25 @@ for idx, message in enumerate(st.session_state.messages):
                 unique_cats = df_numeric_hist[group_col].unique()
                 for i, cat_val in enumerate(unique_cats[:5]):
                     subset = df_numeric_hist[df_numeric_hist[group_col] == cat_val].copy()
-                    plot_smart_chart(
-                        subset, 
-                        x_axis_col, 
-                        y_metrics, 
-                        f"📊 {cat_val}: {', '.join(y_metrics)}", 
-                        f"chart_hist_{idx}_{i}"
-                    )
+                    plot_smart_chart(subset, x_axis_col, y_metrics, f"📊 {cat_val} Analysis", f"ch_{idx}_{i}")
             elif message.get("chart_data") is not None:
                 x_col, y_cols = message["chart_data"]
-                # Filter to ensure Y columns exist and are numeric
                 y_cols_valid = [c for c in y_cols if c in df_numeric_hist.columns]
                 if y_cols_valid:
-                    plot_smart_chart(
-                        df_numeric_hist, 
-                        x_col, 
-                        y_cols_valid, 
-                        f"History: {', '.join(y_cols_valid)}", 
-                        f"chart_hist_{idx}"
-                    )
+                    plot_smart_chart(df_numeric_hist, x_col, y_cols_valid, f"Trends: {', '.join(y_cols_valid)}", f"ch_{idx}")
         
-        # Display FOLLOW-UP buttons if they exist in the message metadata
+        # Display FOLLOW-UP buttons
         if "follow_ups" in message and message["follow_ups"] and idx == len(st.session_state.messages) - 1:
             st.write("---")
             st.write("🔍 **Suggested Follow-ups:**")
-            num_follow_ups = len(message["follow_ups"])
-            if num_follow_ups > 0:
-                f_cols = st.columns(num_follow_ups)
+            num_f = len(message["follow_ups"])
+            if num_f > 0:
+                f_cols = st.columns(num_f)
                 for f_idx, f_text in enumerate(message["follow_ups"]):
                     with f_cols[f_idx]:
-                        if st.button(f_text, key=f"follow_{idx}_{f_idx}"):
+                        if st.button(f_text, key=f"f_{idx}_{f_idx}"):
                             submit_question(f_text)
                             st.rerun()
-
-# Use either chat_input or a click from starters/follow-ups
-user_input = st.chat_input("Ask about your pharma data...")
-prompt = user_input or st.session_state.prompt_trigger
 
 if prompt:
     st.session_state.prompt_trigger = None # Reset

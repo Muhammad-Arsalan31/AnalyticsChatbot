@@ -1,0 +1,38 @@
+[
+    {
+        "role": "user",
+        "content": "Which 3 products have the highest invoice quantity?",
+        "timestamp": "12:54 PM - Apr 03, 2026",
+        "msg_id": "u_1775220841_34"
+    },
+    {
+        "role": "assistant",
+        "content": "\u26a1 **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance.",
+        "sql": "SELECT product_name, SUM(product_quantity) as total_qty\nFROM master_sale\nGROUP BY product_name\nORDER BY total_qty DESC\nLIMIT 3;",
+        "data": [
+            {
+                "product_name": "Product 1",
+                "total_qty": 4806503.0
+            },
+            {
+                "product_name": "Product 3",
+                "total_qty": 2987956.0
+            },
+            {
+                "product_name": "Product 2",
+                "total_qty": 2868215.0
+            }
+        ],
+        "insight": "",
+        "chart_data": [
+            "product_name",
+            [
+                "total_qty"
+            ]
+        ],
+        "split_charts_metadata": null,
+        "follow_ups": [],
+        "timestamp": "12:54 PM - Apr 03, 2026",
+        "msg_id": "a_1775220846_433"
+    }
+]

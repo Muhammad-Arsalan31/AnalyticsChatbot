@@ -5,3 +5,6 @@ psycopg2-binary
 python-dotenv
 openai
 bcrypt
+fastapi
+uvicorn
+pydantic
