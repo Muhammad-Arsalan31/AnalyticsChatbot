@@ -643,84 +643,403 @@ st.session_state.prompt_trigger = st.session_state.get("prompt_trigger", None)
 user_input = st.chat_input("Ask about your pharma data...")
 prompt = user_input or st.session_state.prompt_trigger
 
-# --- STARTER QUESTIONS (Show only if no messages) ---
-if not st.session_state.messages:
-    st.write("### 💡 Start with a sample report:")
-    all_starters = [
-        "Compare top 5 bricks by internal units vs market units",
-        "Show me top 5 Category A doctors",
-        "Which 3 products have the highest invoice quantity?",
-        "Compare internal sales vs market sales in F.B.AREA",
-        "Which brick has the highest internal units sold?",
-        "List top 5 doctors by visit count in doctor_plan",
-        "Compare market units of 'Product A' vs 'Product B' across bricks",
-        "Show internal sales trend for F.B.AREA region",
-        "Which Team has the highest target vs achievement?",
-        "What is the market share of Karachi brick?"
-    ]
-    random.shuffle(all_starters)
-    starters = all_starters[:4]
-    
-    cols = st.columns(2)
-    for i, s in enumerate(starters):
-        with cols[i % 2]:
-            st.button(s, key=f"starter_{s}", on_click=submit_question, args=(s,))
+tab1, tab2 = st.tabs(["💬 AI Chat Agent", "🌍 Intelligence Globe"])
 
-# --- CHAT MESSAGES ---
-for idx, message in enumerate(st.session_state.messages):
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+with tab1:
+    st.caption("Strategic Decision Support with RAG Memory")
+    st.divider()
+
+    # --- STARTER QUESTIONS (Show only if no messages) ---
+    if not st.session_state.messages:
+        st.write("### 💡 Start with a sample report:")
+        all_starters = [
+            "Compare top 5 bricks by internal units vs market units",
+            "Show me top 5 Category A doctors",
+            "Which 3 products have the highest invoice quantity?",
+            "Compare internal sales vs market sales in F.B.AREA",
+            "Which brick has the highest internal units sold?",
+            "List top 5 doctors by visit count in doctor_plan",
+            "Compare market units of 'Product A' vs 'Product B' across bricks",
+            "Show internal sales trend for F.B.AREA region",
+            "Which Team has the highest target vs achievement?",
+            "What is the market share of Karachi brick?"
+        ]
+        random.shuffle(all_starters)
+        starters = all_starters[:4]
         
-        m_id = message.get("msg_id", f"static_{idx}")
+        cols = st.columns(2)
+        for i, s in enumerate(starters):
+            with cols[i % 2]:
+                st.button(s, key=f"starter_{s}", on_click=submit_question, args=(s,))
+
+    # --- CHAT MESSAGES ---
+    for idx, message in enumerate(st.session_state.messages):
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+            
+            m_id = message.get("msg_id", f"static_{idx}")
+
+            # --- MAP DATA RE-RENDER (Persistent Map in History) ---
+            if message.get("map_data"):
+                map_rows = message["map_data"]
+                map_df = pd.DataFrame(map_rows)
+                st.dataframe(map_df[["name", "entity_type", "latitude", "longitude"]], use_container_width=True)
+                try:
+                    import folium
+                    from streamlit_folium import st_folium
+                    view_lat = map_df["latitude"].mean()
+                    view_lng = map_df["longitude"].mean()
+                    m = folium.Map(
+                        location=[view_lat, view_lng], zoom_start=14,
+                        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                        attr="Esri"
+                    )
+                    for _, row in map_df.iterrows():
+                        pin_col = row.get("pin_color", "blue")
+                        folium.Marker(
+                            location=[row["latitude"], row["longitude"]],
+                            popup=folium.Popup(
+                                f"<b>{row['name']}</b><br>"
+                                f"Type: {row.get('entity_type','')}<br>"
+                                f"Area: {row.get('brick_name','')}<br>"
+                                f"📍 {row.get('address','')}",
+                                max_width=300
+                            ),
+                            tooltip=f"{row['name']} — click for address",
+                            icon=folium.Icon(color=pin_col, icon="info-sign")
+                        ).add_to(m)
+                    st_folium(m, width=700, height=400, key=f"hist_map_{idx}")
+                except:
+                    map_st = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
+                    st.map(map_st[["lat", "lon"]], use_container_width=True)
+            
+            # --- Compact Header for SQL, Download & Delete ---
+            if "data" in message and message["data"] is not None:
+                df_raw = pd.DataFrame(message["data"])
+                df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
+                
+                header_cols = st.columns([1, 1, 4])
+                with header_cols[0]:
+                    if st.button("🗑️", key=f"del_{m_id}", help="Delete"):
+                        delete_message(m_id)
+                        st.rerun()
+                with header_cols[1]:
+                    csv = df_display_hist.to_csv(index=False).encode('utf-8')
+                    st.download_button(label="📥 CSV", data=csv, file_name=f"data_{idx}.csv", key=f"dl_{idx}")
+                
+                # --- Table Display ---
+                st.dataframe(df_display_hist, use_container_width=True)
+                
+                # --- AUTO-MAP FOR SQL RESULTS ---
+                # Key addition: If SQL result has coords, show map!
+                if "latitude" in df_raw.columns and "longitude" in df_raw.columns:
+                    map_df_sql = df_raw.dropna(subset=["latitude", "longitude"])
+                    if not map_df_sql.empty:
+                        with st.expander("🗺️ Interactive Map of Results", expanded=True):
+                            try:
+                                import folium
+                                from streamlit_folium import st_folium
+                                # Simple average for center
+                                vlat, vlng = map_df_sql["latitude"].mean(), map_df_sql["longitude"].mean()
+                                m_sql = folium.Map(location=[vlat, vlng], zoom_start=13, tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr="Esri")
+                                for _, row in map_df_sql.iterrows():
+                                    folium.Marker(
+                                        location=[row["latitude"], row["longitude"]],
+                                        popup=f"<b>{row.get('name', 'Record')}</b><br>Lat: {row['latitude']}<br>Lng: {row['longitude']}",
+                                        icon=folium.Icon(color="red", icon="info-sign")
+                                    ).add_to(m_sql)
+                                st_folium(m_sql, width=700, height=400, key=f"sql_map_{idx}")
+                            except:
+                                st.map(map_df_sql.rename(columns={"latitude": "lat", "longitude": "lon"})[["lat", "lon"]])
+
+                if "insight" in message and message["insight"]:
+                    st.info(f"💡 **AI Insights:**\n{message['insight']}")
+                
+                # --- CHART RENDERING (RESTORED) ---
+                split_meta = message.get("split_charts_metadata")
+                if split_meta:
+                    group_col = split_meta["group_col"]
+                    x_axis_col = split_meta["x_axis_col"]
+                    y_metrics = split_meta["y_metrics"]
+                    unique_cats = df_numeric_hist[group_col].unique()
+                    for i, cat_val in enumerate(unique_cats[:5]):
+                        subset = df_numeric_hist[df_numeric_hist[group_col] == cat_val].copy()
+                        plot_smart_chart(subset, x_axis_col, y_metrics, f"📊 {cat_val} Analysis", f"ch_{idx}_{i}")
+                elif message.get("chart_data") is not None:
+                    x_col, y_cols = message["chart_data"]
+                    y_cols_valid = [c for c in y_cols if c in df_numeric_hist.columns]
+                    if y_cols_valid:
+                        plot_smart_chart(df_numeric_hist, x_col, y_cols_valid, f"Trends: {', '.join(y_cols_valid)}", f"ch_{idx}")
+            
+            # Display FOLLOW-UP buttons
+            if "follow_ups" in message and message["follow_ups"] and idx == len(st.session_state.messages) - 1:
+                st.write("---")
+                st.write("🔍 **Suggested Follow-ups:**")
+                num_f = len(message["follow_ups"])
+                if num_f > 0:
+                    f_cols = st.columns(num_f)
+                    for f_idx, f_text in enumerate(message["follow_ups"]):
+                        with f_cols[f_idx]:
+                            if st.button(f_text, key=f"f_{idx}_{f_idx}"):
+                                submit_question(f_text)
+                                st.rerun()
+
+@st.cache_data(ttl=600)  # Cache results for 10 minutes
+def get_globe_data_cached(show_sales):
+    clean_url = DB_URL.split('?')[0] if DB_URL else ""
+    conn = psycopg2.connect(clean_url)
+    
+    # 1. Health Centres
+    if show_sales:
+        h_sql = """
+            SELECT hc.latitude::float, hc.longitude::float, hc.name, 'Health Centre' as type,
+                   SUM(CAST(ms.total_amount AS NUMERIC)) as sales,
+                   COALESCE(hc.address, hc.name, '') as address
+            FROM healthcentres hc
+            LEFT JOIN master_sale ms ON ms.customer_name ILIKE hc.name
+            WHERE hc.latitude IS NOT NULL
+            GROUP BY 1,2,3,4,6
+        """
+        c_sql = """
+            SELECT c.latitude::float, c.longitude::float, c.name, 'Customer' as type,
+                   SUM(CAST(ms.total_amount AS NUMERIC)) as sales,
+                   COALESCE(ib.name, '') as brick_name, '' as address
+            FROM customers c
+            LEFT JOIN master_sale ms ON ms.customer_name ILIKE c.name
+            LEFT JOIN customer_details cd ON cd.customer_id = c.id
+            LEFT JOIN ims_brick ib ON ib.id = cd.ims_brick_id
+            WHERE c.latitude IS NOT NULL
+            GROUP BY 1,2,3,4,6,7
+        """
+    else:
+        h_sql = "SELECT latitude::float, longitude::float, name, 'Health Centre' as type, 0 as sales, COALESCE(address, name, '') as address FROM healthcentres WHERE latitude IS NOT NULL"
+        c_sql = "SELECT c.latitude::float, c.longitude::float, c.name, 'Customer' as type, 0 as sales, COALESCE(ib.name, '') as brick_name, '' as address FROM customers c LEFT JOIN customer_details cd ON cd.customer_id = c.id LEFT JOIN ims_brick ib ON ib.id = cd.ims_brick_id WHERE c.latitude IS NOT NULL"
+
+    h_df = pd.read_sql(h_sql, conn)
+    c_df = pd.read_sql(c_sql, conn)
+    
+    # Doctors
+    with conn.cursor() as cur:
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'doctors'")
+        cols = [c[0].lower() for c in cur.fetchall()]
+    link_col = next((c for c in ["customersid", "customerid"] if c in cols), None)
+    if link_col:
+        d_df = pd.read_sql(f'SELECT c.latitude::float, c.longitude::float, d.name, \'Doctor\' as type, 0 as sales, \'\' as address, \'\' as brick_name FROM doctors d JOIN customers c ON d."{link_col}" = c.id WHERE c.latitude IS NOT NULL LIMIT 80', conn)
+    else:
+        d_df = pd.DataFrame(columns=['latitude', 'longitude', 'name', 'type', 'sales', 'address', 'brick_name'])
+    
+    conn.close()
+    return h_df, c_df, d_df
+
+with tab2:
+    st.subheader("🌍 Field Intelligence Globe (Satellite)")
+    show_sales = st.checkbox("💰 Show Sales Overlay", value=False, help="Enable to see turnover values on map")
+    
+    try:
+        h_df, c_df, d_df = get_globe_data_cached(show_sales)
+        map_data = pd.concat([h_df, c_df, d_df])
+        vlat, vlng = (map_data["latitude"].mean(), map_data["longitude"].mean()) if not map_data.empty else (24.86, 67.00)
+
+        import folium
+        from streamlit_folium import st_folium
+        m = folium.Map(location=[vlat, vlng], zoom_start=11, 
+                       tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", 
+                       attr="Esri")
         
-        # --- Compact Header for SQL, Download & Delete ---
-        if "data" in message and message["data"] is not None:
-            df_raw = pd.DataFrame(message["data"])
-            df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
-            
-            header_cols = st.columns([1, 1, 4])
-            with header_cols[0]:
-                if st.button("🗑️", key=f"del_{m_id}", help="Delete"):
-                    delete_message(m_id)
-                    st.rerun()
-            with header_cols[1]:
-                csv = df_display_hist.to_csv(index=False).encode('utf-8')
-                st.download_button(label="📥 CSV", data=csv, file_name=f"data_{idx}.csv", key=f"dl_{idx}")
-            
-            # --- Table Display ---
-            st.dataframe(df_display_hist, use_container_width=True)
-            
-            if "insight" in message and message["insight"]:
-                st.info(f"💡 **AI Insights:**\n{message['insight']}")
-            
-            # --- CHART RENDERING (RESTORED) ---
-            split_meta = message.get("split_charts_metadata")
-            if split_meta:
-                group_col = split_meta["group_col"]
-                x_axis_col = split_meta["x_axis_col"]
-                y_metrics = split_meta["y_metrics"]
-                unique_cats = df_numeric_hist[group_col].unique()
-                for i, cat_val in enumerate(unique_cats[:5]):
-                    subset = df_numeric_hist[df_numeric_hist[group_col] == cat_val].copy()
-                    plot_smart_chart(subset, x_axis_col, y_metrics, f"📊 {cat_val} Analysis", f"ch_{idx}_{i}")
-            elif message.get("chart_data") is not None:
-                x_col, y_cols = message["chart_data"]
-                y_cols_valid = [c for c in y_cols if c in df_numeric_hist.columns]
-                if y_cols_valid:
-                    plot_smart_chart(df_numeric_hist, x_col, y_cols_valid, f"Trends: {', '.join(y_cols_valid)}", f"ch_{idx}")
+        # Helper for markers
+        for df, color, label in [(h_df, 'red', 'HC'), (c_df, 'orange', 'Cust')]:
+            for _, row in df.iterrows():
+                addr = row.get('address') if row.get('address') else row.get('brick_name', '')
+                popup_text = f"<b>{row['name']}</b><br>Type: {label}<br>📍 {addr}"
+                if show_sales and row['sales'] > 0: popup_text += f"<br><b style='color:green'>Sales: PKR {row['sales']:,.0f}</b>"
+                folium.CircleMarker([row["latitude"], row["longitude"]], 
+                                    radius=7 if show_sales and row['sales'] > 20000 else 5, 
+                                    popup=folium.Popup(popup_text, max_width=250), 
+                                    color=color, fill=True).add_to(m)
+
+        for _, row in d_df.iterrows():
+            folium.CircleMarker([row["latitude"], row["longitude"]], radius=4, popup=f"{row['name']} (Doc)", color='blue', fill=True).add_to(m)
         
-        # Display FOLLOW-UP buttons
-        if "follow_ups" in message and message["follow_ups"] and idx == len(st.session_state.messages) - 1:
-            st.write("---")
-            st.write("🔍 **Suggested Follow-ups:**")
-            num_f = len(message["follow_ups"])
-            if num_f > 0:
-                f_cols = st.columns(num_f)
-                for f_idx, f_text in enumerate(message["follow_ups"]):
-                    with f_cols[f_idx]:
-                        if st.button(f_text, key=f"f_{idx}_{f_idx}"):
-                            submit_question(f_text)
-                            st.rerun()
+        st_folium(m, width=900, height=500, key=f"globe_sat_{show_sales}")
+        st.info("🔴 HC | 🟠 Customers | 🔵 Doctors")
+            
+    except Exception as e:
+        st.error(f"Intelligence Globe Error: {e}")
+
+def is_map_intent(text: str) -> bool:
+    """Detect if user is asking for a location/map visualization."""
+    map_keywords = [
+        "location", "map", "dikhao map", "map pr", "map par", "nakshe", 
+        "kahan hai", "kahan ha", "show on map", "locate", "address", 
+        "coordinates", "gps", "kahan hain", "location show"
+    ]
+    text_lower = text.lower()
+    return any(kw in text_lower for kw in map_keywords)
+
+def extract_entity_name(prompt: str) -> str:
+    """Extract doctor/clinic name from prompt using smart regex (no LLM dependency)."""
+    import re as _re
+    
+    # Strip common map/location trigger words to isolate the entity
+    noise_words = [
+        "ki location dikhao", "ka location dikhao", "ki location show kro",
+        "location dikhao", "location show kro", "location show karo",
+        "ko map par dikhao", "ko map pr dikhao", "map par dikhao", "map pr dikhao",
+        "map par show karo", "show on map", "locate karo", "kahan hai", "kahan ha",
+        "kahan hain", "location", "map", "dikhao", "dikha", "show", "locate",
+        "address", "coordinates", "gps"
+    ]
+    
+    cleaned = prompt.strip()
+    for noise in sorted(noise_words, key=len, reverse=True):  # longest first
+        cleaned = _re.sub(noise, "", cleaned, flags=_re.IGNORECASE).strip()
+    
+    # Remove leftover punctuation/connectors
+    cleaned = _re.sub(r"^(ki|ka|ke|mujhe|mujhay|is|iss)\s+", "", cleaned, flags=_re.IGNORECASE).strip()
+    cleaned = _re.sub(r"\s+(ki|ka|ke|ka|pr|par)$", "", cleaned, flags=_re.IGNORECASE).strip()
+    cleaned = cleaned.strip(".,?!'\"").strip()
+    
+    # If cleaned result is valid, use it
+    if cleaned and cleaned.lower() not in ["none", "", "dr", "doctor"]:
+        return cleaned
+    
+    # Fallback: Try LLM (but validate response)
+    try:
+        res = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "user", "content": f"Extract ONLY the doctor or clinic name from this text. Return ONLY the name, no explanation: '{prompt}'"}],
+            timeout=8.0
+        )
+        llm_name = res.choices[0].message.content.strip().strip('"').strip("'")
+        if llm_name and llm_name.lower() not in ["none", "null", "", "n/a"]:
+            return llm_name
+    except:
+        pass
+    
+    # Last resort: extract ALL-CAPS or Title Case words
+    words = prompt.split()
+    names = [w for w in words if len(w) > 2 and (w[0].isupper() or w.isupper())]
+    names = [w for w in names if w.lower() not in ["show", "map", "the", "karo", "dikhao", "location"]]
+    return " ".join(names) if names else prompt
+
+GEO_CACHE_FILE = os.path.join(get_chats_dir(), "geo_cache.json")
+
+def load_geo_cache():
+    if os.path.exists(GEO_CACHE_FILE):
+        try:
+            with open(GEO_CACHE_FILE, "r") as f:
+                return json.load(f)
+        except: return {}
+    return {}
+
+def save_geo_cache(cache):
+    try:
+        with open(GEO_CACHE_FILE, "w") as f:
+            json.dump(cache, f)
+    except: pass
+
+def reverse_geocode(lat: float, lng: float) -> str:
+    """Persistent Geocoding: Checks JSON first, then calls API."""
+    key = f"{lat:.4f},{lng:.4f}"
+    cache = load_geo_cache()
+    
+    if key in cache:
+        return cache[key]
+    
+    # Not in cache, fetch once
+    try:
+        import urllib.request
+        import json as _json
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat:.4f}&lon={lng:.4f}&zoom=18"
+        req = urllib.request.Request(url, headers={"User-Agent": "PharmaPersistentCache/1.2"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            addr = _json.loads(resp.read().decode()).get("display_name", "Address not found")
+            cache[key] = addr
+            save_geo_cache(cache)
+            return addr
+    except:
+        return f"Lat: {lat:.4f}, Lng: {lng:.4f}"
+
+def extract_multiple_entities(prompt: str) -> list:
+    """Extract multiple location names from prompt separated by aur/and/&/or."""
+    import re as _re
+
+    # Normalize separators
+    normalized = prompt
+    for sep in [" aur ", " and ", " & ", " or ", "، "]:
+        normalized = normalized.replace(sep, "|||")
+
+    parts = normalized.split("|||")
+    names = []
+    for part in parts:
+        name = extract_entity_name(part.strip())
+        if name and name.lower() not in ["none", "", "null"]:
+            names.append(name)
+    return names if names else [extract_entity_name(prompt)]
+
+def fetch_location_for_entity(entity_name: str):
+    """Try multiple tables to find coordinates for the given name."""
+    clean_url = DB_URL.split('?')[0] if DB_URL else ""
+    conn = psycopg2.connect(clean_url)
+    result_list = []
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+
+            # Try 1: customers (simple — no address column assumed)
+            cur.execute("""
+                SELECT c.name, c.latitude::float, c.longitude::float,
+                       'Customer' as entity_type,
+                       COALESCE(ib.name, '') as brick_name
+                FROM customers c
+                LEFT JOIN customer_details cd ON cd.customer_id = c.id
+                LEFT JOIN ims_brick ib ON ib.id = cd.ims_brick_id
+                WHERE c.name ILIKE %s AND c.latitude IS NOT NULL
+                LIMIT 5
+            """, (f"%{entity_name}%",))
+            rows = cur.fetchall()
+            if rows:
+                result_list = [dict(r) for r in rows]
+
+            # Try 2: healthcentres
+            if not result_list:
+                cur.execute("""
+                    SELECT name, latitude::float, longitude::float,
+                           'Health Centre' as entity_type,
+                           '' as brick_name
+                    FROM healthcentres
+                    WHERE name ILIKE %s AND latitude IS NOT NULL
+                    LIMIT 5
+                """, (f"%{entity_name}%",))
+                rows = cur.fetchall()
+                if rows:
+                    result_list = [dict(r) for r in rows]
+
+            # Try 3: doctors via doctor_plan → healthcentres
+            if not result_list:
+                cur.execute("""
+                    SELECT d.name, hc.latitude::float, hc.longitude::float,
+                           'Doctor' as entity_type,
+                           hc.name as brick_name
+                    FROM doctors d
+                    JOIN doctor_plan dp ON dp."doctorId" = d.id
+                    JOIN healthcentres hc ON hc.id = dp."healthCentreId"
+                    WHERE d.name ILIKE %s AND hc.latitude IS NOT NULL
+                    LIMIT 5
+                """, (f"%{entity_name}%",))
+                rows = cur.fetchall()
+                if rows:
+                    result_list = [dict(r) for r in rows]
+
+    except Exception:
+        result_list = []
+    finally:
+        conn.close()
+
+    # Add real street address via free reverse geocoding
+    for row in result_list:
+        row["address"] = reverse_geocode(row["latitude"], row["longitude"])
+
+    return result_list
 
 if prompt:
     st.session_state.prompt_trigger = None # Reset
@@ -729,6 +1048,47 @@ if prompt:
         st.markdown(prompt)
         st.caption(f"🕒 {current_time}")
     st.session_state.messages.append({"role": "user", "content": prompt, "timestamp": current_time, "msg_id": f"u_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,1000)}"})
+
+    # --- MAP INTENT DETECTION (Before SQL loop) ---
+    if is_map_intent(prompt):
+        PIN_COLORS = ["blue", "red", "green", "orange", "purple", "darkblue", "cadetblue"]
+        with st.spinner("🗺️ Locations dhundh raha hun..."):
+            entity_names = extract_multiple_entities(prompt)
+            all_results = []
+            for i, ename in enumerate(entity_names):
+                rows = fetch_location_for_entity(ename)
+                color = PIN_COLORS[i % len(PIN_COLORS)]
+                for row in rows:
+                    row["pin_color"] = color
+                    row["search_label"] = ename
+                all_results.extend(rows)
+
+        ai_msg_id = f"a_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,9999)}"
+        current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
+
+        if all_results:
+            labels = " | ".join(f"📍 {n}" for n in entity_names)
+            map_content = f"### {labels}\n{len(all_results)} location(s) found:"
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": map_content,
+                "map_data": all_results,
+                "timestamp": current_time_ai,
+                "msg_id": ai_msg_id
+            })
+        else:
+            searched = ", ".join(entity_names) if entity_names else prompt
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"⚠️ **'{searched}'** ke liye koi coordinates nahi mili.\n\n**Wajah:** Database mein latitude/longitude missing hai ya naam match nahi hua.",
+                "timestamp": current_time_ai,
+                "msg_id": ai_msg_id
+            })
+        # ✅ SAVE TO DISK + DB before rerun (map chats were NOT being saved before!)
+        new_id = save_session(st.session_state.current_session, st.session_state.messages)
+        if st.session_state.current_session.startswith("New_Session_"):
+            st.session_state.current_session = new_id
+        st.rerun()  # Rerun so history loop renders the saved map
 
     with st.spinner("Retrieving Data..."):
         sys_prompt = "You are a professional Pharma Database Agent. STRICTLY use proper English spelling for business terms (e.g., 'Business Summary', 'Sales', 'Growth') even when writing the rest of the sentence in Roman Urdu. Do NOT use literal phonetic translations like 'Biznes' or 'bikri'. STRICT: Do NOT use any emojis, icons, or decorative symbols."

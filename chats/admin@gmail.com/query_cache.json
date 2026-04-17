@@ -25,5 +25,19 @@
     "doctors ki age?": "SELECT \n  id, name\nFROM \n  doctors\nWHERE \n  id IN (SELECT id FROM doctors)\nLIMIT 10;",
     "list top 5 doctors by visit count in doctor_plan": "SELECT \n  d.name, \n  COUNT(dp.\"id\") AS \"Visit Count\"\nFROM \n  doctor_plan dp\nJOIN \n  doctors d ON dp.\"doctorId\" = d.id\nGROUP BY \n  d.name\nORDER BY \n  \"Visit Count\" DESC\nLIMIT 5;",
     "show me top 3 invoice by quantity": "SELECT \n  id, \n  product_quantity\nFROM \n  invoice_details\nORDER BY \n  product_quantity DESC\nLIMIT 3;",
-    "by revenue": "SELECT \n  id, \n  product_id, \n  invoice_id, \n  product_quantity, \n  product_price, \n  product_quantity * product_price AS revenue\nFROM \n  invoice_details\nORDER BY \n  revenue DESC\nLIMIT 3;"
+    "by revenue": "SELECT \n  id, \n  product_id, \n  invoice_id, \n  product_quantity, \n  product_price, \n  product_quantity * product_price AS revenue\nFROM \n  invoice_details\nORDER BY \n  revenue DESC\nLIMIT 3;",
+    "dr. baseer sultan data": "SELECT \n  d.* \nFROM \n  doctors d\nWHERE \n  d.name ILIKE '%Baseer Sultan%';",
+    "ye kis chez ke specialist ha": "SELECT \n  d.name, \n  sp.name AS \"Specialization\"\nFROM \n  doctors d\nJOIN \n  specializatons sp ON d.id = ANY(SELECT \"B\" FROM \"_doctorsTospecializatons\" WHERE \"A\" = d.id);",
+    "show me top 10 doctor names with their occurrence counts": "SELECT \n  customer_name AS \"Doctor Name\", \n  COUNT(*) AS \"Occurrence Count\"\nFROM \n  master_sale \nWHERE \n  customer_type = 'Doctors'\nGROUP BY \n  customer_name\nORDER BY \n  \"Occurrence Count\" DESC\nLIMIT 10;",
+    "count how many times 'abdul malik' appears in the doctors table": "SELECT \n  COUNT(*) AS \"Count of 'ABDUL MALIK' in doctors table\"\nFROM \n  doctors\nWHERE \n  name = 'ABDUL MALIK';",
+    "dummy data hamre pass kiya kiya ha": "SELECT \n  TABLE_NAME \nFROM \n  information_schema.tables \nWHERE \n  TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA = 'public';",
+    "specializatons ka dummy data": "SELECT \n  id, \n  cmp_sp_id, \n  name, \n  created_at, \n  updated_at, \n  deleted_at\nFROM \n  specializatons\nLIMIT 10;",
+    "specializatons ma doctors ka dummy data": "SELECT \n  d.name AS \"Doctor Name\", \n  sp.name AS \"Specialization\"\nFROM \n  doctors d\nJOIN \n  specializatons sp ON d.id = ANY(SELECT \"B\" FROM \"_doctorsTospecializatons\" WHERE \"A\" = d.id)",
+    "specializatons ma doctors ka unique data": "SELECT DISTINCT \n  d.name AS \"Doctor Name\", \n  sp.name AS \"Specialization\"\nFROM \n  doctors d\nJOIN \n  specializatons sp ON d.id = ANY(SELECT \"B\" FROM \"_doctorsTospecializatons\" WHERE \"A\" = d.id)",
+    "kisi 3 doctors ki location show kro map pr": "SELECT DISTINCT c.latitude, c.longitude, c.name\nFROM customers c\nWHERE c.customer_type_id IN (\n    SELECT id\n    FROM customer_types\n    WHERE type = 'Doctors'\n)\nLIMIT 3;",
+    "habibia clinic mujhe map par dikhow": "SELECT c.latitude, c.longitude, c.name \nFROM customers c \nJOIN customer_details cd ON c.id = cd.customer_id \nWHERE c.name ILIKE '%HABIBIA CLINIC%';",
+    "show the map?": "SELECT \n  c.latitude, \n  c.longitude, \n  c.name \nFROM customers c \nWHERE c.customer_type_id IN (\n  SELECT id \n  FROM customer_types \n  WHERE type = 'Doctors'\n)\nLIMIT 1;",
+    "acha srif rameez clinic": "SELECT \n  hc.name, \n  hc.latitude, \n  hc.longitude\nFROM \n  healthcentres hc\nWHERE \n  hc.name ILIKE '%RAMEEZ CLINIC%';",
+    "health centers ke  latitude/longitude ka data doo": "SELECT \n  name, \n  latitude, \n  longitude\nFROM \n  healthcentres;",
+    "rameez clinic ki sales ka trend dikhao chart par": "SELECT \n  EXTRACT(MONTH FROM ms.invoice_date) AS month_number, \n  SUM(ms.total_amount) AS total_revenue\nFROM master_sale ms \nWHERE ms.customer_name ILIKE '%RAMEEZ CLINIC%'\nGROUP BY EXTRACT(MONTH FROM ms.invoice_date)\nORDER BY month_number;"
 }

@@ -19,11 +19,27 @@ LLM_MODEL = os.getenv("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct")
 
 client = openai.OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Pharma AI Agent API")
+
+# --- CORS CONFIGURATION (Crucial for Website Integration) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
-    return {"status": "online", "message": "Pharma AI Agent API is running. Access /docs for documentation."}
+    return {
+        "status": "online", 
+        "message": "Pharma AI Agent API is active",
+        "integration_info": "Send POST requests to /ask for data retrieval",
+        "docs": "/docs"
+    }
 
 class QueryRequest(BaseModel):
     prompt: str
