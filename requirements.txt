@@ -8,3 +8,7 @@ bcrypt
 fastapi
 uvicorn
 pydantic
+folium
+streamlit-folium
+pydeck
+tavily-python

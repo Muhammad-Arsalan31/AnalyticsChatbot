@@ -10,10 +10,13 @@ A premium, enterprise-grade AI agent designed for **Pharmaceutical Business Inte
 - **RAG-Powered Memory**: Uses a custom "Knowledge Base" (`knowledge/`) to understand pharmaceutical jargon and specific database mappings.
 - **Premium UI/UX**: Overhauled Streamlit interface with glassmorphism, custom Google Fonts (Outfit/Inter), and smooth animations.
 - **Automated Visualization**: Smart charting logic that automatically selects the best visualization (Bar, Line, etc.) for your data while blacklisting non-metric columns.
+- **Geospatial Intelligence**: Integrated Satellite Mapping (Folium) and High-Speed 3D Visualization (WebGL/PyDeck) for field data.
+- **Persistent Interaction History**: Maps, charts, and complex analytical results are now fully saved in the chat history, surviving page refreshes and server restarts.
 - **Enterprise Security**: 
   - Database-backed authentication for Managers and Users.
   - User-specific chat isolation (each user sees only their own history).
   - Secure "Master Key" fallback for administrators.
+- **Advanced Geocoding Cache**: Persistent disk-based caching (`geo_cache.json`) for coordinates, ensuring zero-latency address lookup after the first fetch.
 - **Reliable Message Management**: Integrated 🗑️ deletion system that removes both the question AND its specific output from memory.
 
 ---

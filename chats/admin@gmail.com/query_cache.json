@@ -39,5 +39,9 @@
     "show the map?": "SELECT \n  c.latitude, \n  c.longitude, \n  c.name \nFROM customers c \nWHERE c.customer_type_id IN (\n  SELECT id \n  FROM customer_types \n  WHERE type = 'Doctors'\n)\nLIMIT 1;",
     "acha srif rameez clinic": "SELECT \n  hc.name, \n  hc.latitude, \n  hc.longitude\nFROM \n  healthcentres hc\nWHERE \n  hc.name ILIKE '%RAMEEZ CLINIC%';",
     "health centers ke  latitude/longitude ka data doo": "SELECT \n  name, \n  latitude, \n  longitude\nFROM \n  healthcentres;",
-    "rameez clinic ki sales ka trend dikhao chart par": "SELECT \n  EXTRACT(MONTH FROM ms.invoice_date) AS month_number, \n  SUM(ms.total_amount) AS total_revenue\nFROM master_sale ms \nWHERE ms.customer_name ILIKE '%RAMEEZ CLINIC%'\nGROUP BY EXTRACT(MONTH FROM ms.invoice_date)\nORDER BY month_number;"
+    "rameez clinic ki sales ka trend dikhao chart par": "SELECT \n  EXTRACT(MONTH FROM ms.invoice_date) AS month_number, \n  SUM(ms.total_amount) AS total_revenue\nFROM master_sale ms \nWHERE ms.customer_name ILIKE '%RAMEEZ CLINIC%'\nGROUP BY EXTRACT(MONTH FROM ms.invoice_date)\nORDER BY month_number;",
+    "which team has the highest target vs achievement?": "SELECT team_id, SUM(sale_target) AS target_sales\nFROM targets\nGROUP BY team_id;",
+    "karachi ma abhi kya temprature ha": "SELECT SUM(total_amount) \nFROM master_sale \nWHERE area_name ILIKE '%KHI%' \nAND EXTRACT(MONTH FROM invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE)\nAND EXTRACT(YEAR FROM invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE);",
+    "top 3 managers": "SELECT \n  area_manager_name, \n  SUM(total_amount) AS total_sales\nFROM \n  master_sale\nWHERE \n  invoice_date >= '2025-01-01'\nGROUP BY \n  area_manager_name\nORDER BY \n  total_sales DESC\nLIMIT 3;",
+    "pakistan mein current medicine prices aur inflation ke trends kya hain? web search karein": "SELECT \n  product_group_name,\n  SUM(product_quantity) AS quantity_sold,\n  SUM(total_amount) AS total_revenue,\n  EXTRACT(YEAR FROM invoice_date) AS year\nFROM \n  master_sale\nWHERE \n  invoice_date >= '2020-01-01'\nGROUP BY \n  product_group_name, \n  EXTRACT(YEAR FROM invoice_date)\nORDER BY \n  total_revenue DESC;"
 }

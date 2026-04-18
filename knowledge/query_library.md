@@ -47,7 +47,8 @@ JOIN "specializatons" AS sp ON dr."id" = ANY(SELECT "B" FROM "_doctorsTospeciali
 JOIN "healthcentres" AS hc ON dr."id" = ANY(SELECT "A" FROM "_doctorsTohealthcentres" WHERE "B" = dr."id")
 JOIN "regions" AS r ON hc."region_id" = r."id";
 ```
-### Example 4: Counting Visits for a Specific Doctor (Handling subqueries and mixed case columns)
+
+### Example 4: Counting Visits for a Specific Doctor (Handling camelCase)
 ```sql
 SELECT 
   d."name",
@@ -56,9 +57,11 @@ FROM "doctors" d
 JOIN "doctor_plan" dp ON dp."doctorId" = d."id"  -- Always quote camelCase columns like "doctorId"
 WHERE d."id" IN (
     SELECT "id" FROM "doctors" WHERE "name" ILIKE '%faisal%' 
-) -- Always use IN instead of '=' for subqueries to prevent 'more than one row returned' errors.
+)
 GROUP BY d."name"
 ORDER BY "Doctor Visits" DESC;
+```
+
 ### Example 5: Monthly Sales for a Specific Area Brick
 ```sql
 SELECT 
@@ -74,19 +77,6 @@ ORDER BY total_revenue DESC;
 ```
 **CRITICAL NOTE:** Database `master_sale` uses `invoice_date`. The column `sale_date` does NOT exist.
 
-### Example 9: Antibiotics Simulation (Product Group Analysis)
-```sql
--- Monthly trend of Antibiotics in Karachi for Simulation
-SELECT 
-  product_group_name, 
-  SUM(total_amount) as total_revenue,
-  invoice_date
-FROM master_sale 
-WHERE product_group_name ILIKE '%Antibiotic%'
-AND area_name ILIKE '%Karachi%'
-GROUP BY 1, 3;
-```
-**CRITICAL:** Always use `product_group_name` (NOT `product_group`).
 ### Example 6: Filtering Sales by Manager Name
 ```sql
 -- Direct way: Using master_sale columns (Fastest)
@@ -95,7 +85,19 @@ FROM master_sale
 WHERE area_manager_name ILIKE '%Haider Ali%'
 AND invoice_date >= '2025-01-01';
 ```
-**CRITICAL NOTE:** `area_managers` does NOT have `distributor_id`. Always use columns in `master_sale` for geography filtering.
+
+### Example 7: Sales by Team (Addressing team_id Error)
+```sql
+-- master_sale does NOT have team_id. Use team_name directly.
+SELECT 
+  team_name, 
+  SUM(total_amount) AS total_revenue 
+FROM master_sale 
+WHERE team_name ILIKE '%Team Alpha%' 
+GROUP BY 1;
+```
+**CRITICAL SCHEMA NOTE:** `master_sale` does NOT have `team_id` or `manager_id`. For team filtering, use **`team_name`** directly. For manager filtering, use **`area_manager_name`**.
+
 ### Example 8: Top Doctor Sales (Pareto Analysis)
 ```sql
 SELECT 
@@ -109,9 +111,24 @@ LIMIT 10;
 ```
 **CRITICAL:** `master_sale` uses `customer_name` for doctors. NEVER use `doctor_name`.
 
+### Example 9: Antibiotics Simulation
+```sql
+SELECT 
+  product_group_name, 
+  SUM(total_amount) as total_revenue,
+  invoice_date
+FROM master_sale 
+WHERE product_group_name ILIKE '%Antibiotic%'
+AND area_name ILIKE '%Karachi%'
+GROUP BY 1, 3;
+```
+**CRITICAL:** Always use `product_group_name` (NOT `product_group`).
+
+---
+
 **IMPORTANT SCHEMA NOTE:** The table `customers` does NOT have any column named `customer_type`. The only tables with the `customer_type` label are `master_sale` (column `customer_type`) and `customer_types` (column `type`). When querying the `customers` table, you must join with `customer_types` on `customer_type_id = id`.
 ```sql
--- Correct way to get Doctor details from customers table
+-- Correct way:
 SELECT c.name, ct.type 
 FROM customers c 
 JOIN customer_types ct ON c.customer_type_id = ct.id 

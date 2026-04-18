@@ -273,12 +273,16 @@ def load_session(filename):
 
 # --- DATABASE ENGINE ---
 def run_sql_query(query: str):
+    # Strip SQL comments and whitespace before validation
+    clean_q = re.sub(r'(--.*)|(/\*[\s\S]*?\*/)', '', query).strip().upper()
+    
     forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE"]
-    query_u = query.upper()
-    if not (query_u.strip().startswith("SELECT") or query_u.strip().startswith("WITH")):
+    
+    if not (clean_q.startswith("SELECT") or clean_q.startswith("WITH")):
         return {"error": "Only SELECT or WITH queries are allowed."}
+    
     for word in forbidden:
-        if re.search(rf'\b{word}\b', query_u):
+        if re.search(rf'\b{word}\b', clean_q):
             return {"error": f"Keyword {word} is not allowed."}
 
     try:
@@ -324,7 +328,6 @@ def get_rag_context(user_query: str):
     context += "4. FUZZY SEARCH (ILIKE): For all user filters (like 'Gulshan'), use ILIKE with wildcards: WHERE ib.name ILIKE '%gulshan%'.\n"
     context += "5. GULSHAN AGGREGATION: Gulshan has many blocks (Block 5, 6, etc.). Always use ILIKE '%gulshan%' to aggregate all of them.\n"
     context += "6. EMPTY TABLES: 'orders' and 'targets' are EMPTY. For sales, always use 'master_sale' or 'invoice_details'.\n"
-    
     return context
 
 @st.cache_data(ttl=1800)
@@ -1091,7 +1094,20 @@ if prompt:
         st.rerun()  # Rerun so history loop renders the saved map
 
     with st.spinner("Retrieving Data..."):
-        sys_prompt = "You are a professional Pharma Database Agent. STRICTLY use proper English spelling for business terms (e.g., 'Business Summary', 'Sales', 'Growth') even when writing the rest of the sentence in Roman Urdu. Do NOT use literal phonetic translations like 'Biznes' or 'bikri'. STRICT: Do NOT use any emojis, icons, or decorative symbols."
+        sys_prompt = """You are 'Antigravity Pharma AI' — a premium, dual-purpose Executive Assistant.
+
+        ROLE 1 (PHARMA EXPERT):
+        - For data, sales, or business questions, use your Database knowledge and provided SQL examples.
+        - Always use professional terminology and accurate metrics.
+
+        ROLE 2 (GENERAL ASSISTANT):
+        - You are now AUTHORIZED to answer any general questions (History, Science, Programming, General Urdu Poetry, etc.).
+        - If the user asks something outside of pharma, respond politely and helpfully using your internal knowledge.
+
+        COMMUNICATION:
+        - Mix Roman Urdu and Professional English.
+        - No emojis or decorative symbols in the final output unless requested.
+        """
         try:
             # --- 1. QUICKEST CACHE CHECK (No File Reads) ---
             cache = load_query_cache()
@@ -1109,8 +1125,32 @@ if prompt:
                 if not (isinstance(results, dict) and "error" in results):
                     is_cached = True
 
-            # --- 2. LLM GENERATION ONLY ON CACHE MISS ---
-            if not is_cached:
+            # --- 2. TAVILY CHECK (NEW) ---
+            tavily_api_key = os.getenv("TAVILY_API_KEY")
+            is_web_request = any(word in normalized_q for word in ["google", "search", "latest", "news", "internet", "web"])
+            
+            if tavily_api_key and is_web_request:
+                try:
+                    from tavily import TavilyClient
+                    tavily = TavilyClient(api_key=tavily_api_key)
+                    with st.spinner("Searching the Web..."):
+                        search_result = tavily.search(query=prompt, search_depth="advanced")
+                        if search_result.get('results'):
+                            conversational_reply = f"🌐 **Search Insight:**\n\n"
+                            for res in search_result['results'][:3]:
+                                conversational_reply += f"- [{res['title']}]({res['url']})\n"
+                            conversational_reply += f"\n\n**Summary:** {search_result['results'][0]['content'][:1000]}"
+                            is_conversational = True
+                        else:
+                            is_conversational = False
+                except Exception as e:
+                    # Silently fail web search and fallback to standard LLM flow if internet/DNS is down
+                    is_conversational = False
+                    is_web_request = False 
+                    st.warning("⚠️ Could not connect to Web Search (Network Error). Proceeding with internal knowledge.")
+
+            # --- 3. LLM GENERATION ---
+            if not is_cached and not is_conversational:
                 # Cache misses perform file reads
                 schema = get_schema()
                 rag_context = get_rag_context(prompt)
@@ -1221,6 +1261,21 @@ if prompt:
                 final_answer = conversational_reply
                 df = pd.DataFrame()
                 current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
+                
+                # PERSISTENCE FIX: Append to messages and save
+                ai_msg_id = f"a_conv_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,1000)}"
+                st.session_state.messages.append({
+                    "role": "assistant", 
+                    "content": final_answer, 
+                    "timestamp": current_time_ai, 
+                    "msg_id": ai_msg_id
+                })
+                
+                # Save to Local + DB
+                new_id = save_session(st.session_state.current_session, st.session_state.messages)
+                if st.session_state.current_session.startswith("New_Session_"):
+                    st.session_state.current_session = new_id
+                
                 with st.chat_message("assistant"):
                     st.markdown(final_answer)
                     st.caption(f"🕒 {current_time_ai}")
