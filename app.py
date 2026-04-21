@@ -964,20 +964,26 @@ def reverse_geocode(lat: float, lng: float) -> str:
         return f"Lat: {lat:.4f}, Lng: {lng:.4f}"
 
 def extract_multiple_entities(prompt: str) -> list:
-    """Extract multiple location names from prompt separated by aur/and/&/or."""
+    """Extract multiple location names using robust case-insensitive regex splitting."""
     import re as _re
+    
+    # 1. First, remove common trailing fluff that shouldn't be part of any name
+    fluff = [" teeno ", " dono ", " sab ", " ke sath ", " k sath "]
+    clean_prompt = prompt
+    for f in fluff:
+        clean_prompt = _re.sub(f, " ", clean_prompt, flags=_re.IGNORECASE)
 
-    # Normalize separators
-    normalized = prompt
-    for sep in [" aur ", " and ", " & ", " or ", "، "]:
-        normalized = normalized.replace(sep, "|||")
-
-    parts = normalized.split("|||")
+    # 2. Split by common separators using regex (case-insensitive)
+    # Handles: 'OR', 'or', 'AND', 'and', 'AUR', 'aur', '+', '&', '/', ',', '،'
+    pattern = _re.compile(r'\s+(?:or|and|aur)\s+|\s*[+&/,،]\s*', _re.IGNORECASE)
+    parts = pattern.split(clean_prompt)
+    
     names = []
     for part in parts:
         name = extract_entity_name(part.strip())
-        if name and name.lower() not in ["none", "", "null"]:
+        if name and name.lower() not in ["none", "", "null", "ab mujhe", "teeno"]:
             names.append(name)
+            
     return names if names else [extract_entity_name(prompt)]
 
 def fetch_location_for_entity(entity_name: str):
