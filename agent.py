@@ -1,137 +1,99 @@
-import os
-import re
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from dotenv import load_dotenv
-import openai
-from typing import List, Dict, Any
+"""
+agent.py — CLI version of the Pharma Intelligence Agent
+Fixes / Features:
+  - RAG context now loaded via agent_core (was missing before)
+  - Conversation memory for follow-up questions
+  - Streaming output to terminal
+  - Self-correction retry loop via agent_core
+"""
 
-# Load environment variables
-load_dotenv()
+import sys
+from agent_core import generate_and_run_sql, summarise_results_stream, suggest_followups
 
-# Configuration
-DB_URL = os.getenv("DATABASE_URL")
-LLM_API_KEY = os.getenv("LLM_API_KEY")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
-# Map common display names to OpenRouter slugs if necessary
-RAW_MODEL = os.getenv("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct")
-if "Llama 3.3 70B Instruct" in RAW_MODEL:
-    LLM_MODEL = "meta-llama/llama-3.3-70b-instruct"
-else:
-    LLM_MODEL = RAW_MODEL
+def run_interactive():
+    """Interactive REPL with conversation memory."""
+    print("\n💊 Pharma Intelligence Agent (CLI)")
+    print("Type your question, or 'exit' to quit.\n")
 
-# Initialize OpenAI/OpenRouter client
-client = openai.OpenAI(
-    api_key=LLM_API_KEY,
-    base_url=LLM_BASE_URL
-)
+    history = []   # list of {"role": ..., "content": ...}
 
-def run_sql_query(query: str) -> List[Dict[str, Any]]:
-    """Executes a READ-ONLY SQL query against the database."""
-    # Strict safety check
-    forbidden_keywords = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "GRANT", "REVOKE"]
-    query_upper = query.upper()
-    
-    if not query_upper.strip().startswith("SELECT"):
-        return [{"error": "Only SELECT queries are allowed."}]
-    
-    for word in forbidden_keywords:
-        if word in query_upper:
-            # Check if it's a standalone word to avoid false positives (e.g. table name 'deleted_at')
-            if re.search(rf'\b{word}\b', query_upper):
-                return [{"error": f"Keyword {word} is not allowed."}]
+    while True:
+        try:
+            question = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nGoodbye.")
+            break
 
-    conn = None
-    try:
-        # Clean URL (psycopg2 might not like ?schema=... params)
-        clean_url = DB_URL.split('?')[0] if DB_URL else ""
-        conn = psycopg2.connect(clean_url)
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(query)
-            results = cur.fetchall()
-            return results
-    except Exception as e:
-        return [{"error": str(e)}]
-    finally:
-        if conn:
-            conn.close()
+        if not question:
+            continue
+        if question.lower() in ("exit", "quit", "q"):
+            print("Goodbye.")
+            break
 
-def get_schema_context():
-    """Reads the schema file to provide context for the LLM."""
-    schema_path = os.path.join(os.getcwd(), "prisma", "schema.prisma")
-    try:
-        with open(schema_path, "r") as f:
-            return f.read()
-    except:
-        return "Schema file not found."
+        result = generate_and_run_sql(question, history=history)
 
-def ask_agent(question: str):
-    schema = get_schema_context()
-    
-    # 1. Generate SQL
-    prompt = f"""
-    You are a production-grade Text-to-SQL AI Agent for PostgreSQL.
-    
-    SCHEMA:
-    {schema}
-    
-    RULES:
-    - IMPORTANT: Always use double quotes for ALL table and column names (e.g., "doctor_plan"."managerId") to avoid case-sensitivity errors.
-    - ONLY output the SQL query inside a code block.
-    - Use READ-ONLY SELECT queries.
-    - Answer ONLY using the schema provided.
-    - If required data is not in schema, Respond with "ERROR: Data not available in database."
-    - Use aliases for readability.
-    - Use LIMIT 10 if not specified.
-    
-    USER QUESTION: {question}
-    """
-    
-    response = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=[{"role": "system", "content": "You are a professional SQL expert."},
-                  {"role": "user", "content": prompt}]
-    )
-    
-    sql_match = re.search(r"```sql\n(.*?)\n```", response.choices[0].message.content, re.DOTALL)
-    if not sql_match:
-        sql_query = response.choices[0].message.content.strip()
-    else:
-        sql_query = sql_match.group(1).strip()
+        if result["retries"] > 1:
+            print(f"\n[Agent] ⚠  Needed {result['retries']} attempt(s) to generate valid SQL.")
 
-    if "ERROR" in sql_query:
-        print(f"\n[Agent]: {sql_query}")
+        print(f"\n[SQL]\n{result['sql']}\n")
+
+        if result["error"]:
+            print(f"[Error] {result['error']}\n")
+            # Still update history so follow-ups have context
+            history.append({"role": "user",      "content": question})
+            history.append({"role": "assistant",  "content": f"SQL failed: {result['error']}"})
+            continue
+
+        rows = result["results"]
+        print(f"[Rows returned] {len(rows)}\n")
+        print("[Answer] ", end="", flush=True)
+
+        # Streaming output to terminal
+        full_answer = ""
+        for chunk in summarise_results_stream(question, rows):
+            print(chunk, end="", flush=True)
+            full_answer += chunk
+        print("\n")
+
+        # Follow-up suggestions
+        followups = suggest_followups(question, rows)
+        if followups:
+            print("🔍 Suggested follow-ups:")
+            for i, fq in enumerate(followups, 1):
+                print(f"  {i}. {fq}")
+            print()
+
+        # Update conversation history (keep last 6 turns to avoid token bloat)
+        history.append({"role": "user",     "content": question})
+        history.append({"role": "assistant", "content": full_answer})
+        if len(history) > 12:
+            history = history[-12:]
+
+
+def run_single(question: str):
+    """Single-shot query (original CLI behaviour)."""
+    print(f"\n💊 Pharma Intelligence Agent")
+    print(f"Query: {question}\n")
+
+    result = generate_and_run_sql(question)
+
+    if result["retries"] > 1:
+        print(f"⚠  Self-corrected after {result['retries']} attempt(s).")
+
+    print(f"[SQL]\n{result['sql']}\n")
+
+    if result["error"]:
+        print(f"[Error] {result['error']}")
         return
 
-    print(f"\n[SQL Generated]:\n{sql_query}")
+    print(f"[Rows] {len(result['results'])}\n[Answer] ", end="", flush=True)
+    for chunk in summarise_results_stream(question, result["results"]):
+        print(chunk, end="", flush=True)
+    print()
 
-    # 2. Execute SQL
-    results = run_sql_query(sql_query)
-    
-    if results and "error" in results[0]:
-        print(f"\n[Error]: {results[0]['error']}")
-        return
-
-    # 3. Summarize Results
-    summary_prompt = f"""
-    The user asked: {question}
-    The database returned: {results}
-    
-    Convert this result into a clear, concise, business-friendly natural language answer.
-    Do NOT mention SQL or technical database terms.
-    """
-    
-    summary_res = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=[{"role": "user", "content": summary_prompt}]
-    )
-    
-    print(f"\n[Answer]: {summary_res.choices[0].message.content}")
 
 if __name__ == "__main__":
-    import sys
     if len(sys.argv) > 1:
-        user_input = " ".join(sys.argv[1:])
-        ask_agent(user_input)
+        run_single(" ".join(sys.argv[1:]))
     else:
-        print("Usage: python agent.py \"your question here\"")
+        run_interactive()

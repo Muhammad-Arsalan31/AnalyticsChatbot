@@ -1,1460 +1,882 @@
+"""
+app.py — Pharma Intelligence Streamlit App
+Refactored to use:
+  - db.py          → connection pool, parameterized auth, chat persistence
+  - agent_core.py  → RAG context, SQL self-correction, streaming summaries
+"""
+
+import os
+import re
+import json
+import random
+import datetime
+import decimal
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import os
-import re
-import random
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from dotenv import load_dotenv
-import openai
-from typing import List, Dict, Any
 
-# --- CONFIGURATION ---
-load_dotenv(override=True)
-DB_URL = os.getenv("DATABASE_URL")
-LLM_API_KEY = os.getenv("LLM_API_KEY").strip() if os.getenv("LLM_API_KEY") else None
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
-LLM_MODEL = os.getenv("LLM_MODEL", "meta-llama/llama-3.3-70b-instruct")
+# ── Internal modules (fixes live here) ──────────────────────────────────────
+from db import verify_login, run_sql_query, upsert_db_chat, delete_db_chat, load_db_chat
+from agent_core import (
+    generate_and_run_sql,
+    summarise_results_stream,
+    suggest_followups,
+    client as llm_client,
+    LLM_MODEL,
+)
 
-client = openai.OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+# ── Page config ──────────────────────────────────────────────────────────────
+st.set_page_config(page_title="Pharma Intelligence", page_icon="💊", layout="wide")
 
-import decimal
-import json
-
-import datetime
-# Custom JSON encoder to handle PostgreSQL Decimal types and Date/Time objects
+# ── JSON encoder ─────────────────────────────────────────────────────────────
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, decimal.Decimal):
             return float(obj)
-        elif isinstance(obj, (datetime.date, datetime.datetime, pd.Timestamp)):
+        if isinstance(obj, (datetime.date, datetime.datetime, pd.Timestamp)):
             return obj.isoformat()
         return super().default(obj)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# SESSION STORAGE HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def get_chats_dir() -> str:
+    username = st.session_state.get("username", "default")
+    d = os.path.join("chats", str(username).strip())
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+# Shared geo cache (not per-user) — fixes the per-user cache bug
+GEO_CACHE_FILE = os.path.join("chats", "geo_cache.json")
+os.makedirs("chats", exist_ok=True)
+
+
+def load_geo_cache() -> dict:
+    try:
+        with open(GEO_CACHE_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_geo_cache(cache: dict):
+    try:
+        with open(GEO_CACHE_FILE, "w") as f:
+            json.dump(cache, f)
+    except Exception:
+        pass
+
+
+def reverse_geocode(lat: float, lng: float) -> str:
+    key = f"{lat:.4f},{lng:.4f}"
+    cache = load_geo_cache()
+    if key in cache:
+        return cache[key]
+    try:
+        import urllib.request, json as _json
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat:.4f}&lon={lng:.4f}&zoom=18"
+        req = urllib.request.Request(url, headers={"User-Agent": "PharmaBot/2.0"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            addr = _json.loads(resp.read().decode()).get("display_name", "Address not found")
+            cache[key] = addr
+            save_geo_cache(cache)
+            return addr
+    except Exception:
+        return f"Lat: {lat:.4f}, Lng: {lng:.4f}"
+
+
+def get_query_cache_path() -> str:
+    return os.path.join(get_chats_dir(), "query_cache.json")
+
+
+def load_query_cache() -> dict:
+    p = get_query_cache_path()
+    if os.path.exists(p):
+        with open(p, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_to_query_cache(question: str, sql: str):
+    cache = load_query_cache()
+    cache[question.lower().strip()] = sql
+    with open(get_query_cache_path(), "w") as f:
+        json.dump(cache, f, indent=4)
+
+
+def save_session(session_id: str, messages: list) -> str:
+    if not messages:
+        return session_id
+    username = st.session_state.get("username", "default")
+
+    # Auto-generate session title from first question
+    title = session_id
+    if session_id.startswith("New_Session_"):
+        try:
+            first_q = messages[0]["content"]
+            resp = llm_client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=[{"role": "user", "content": f"Title this pharma question in max 4 words. Output ONLY the words: {first_q}"}],
+                timeout=5.0,
+            )
+            raw = resp.choices[0].message.content.strip()
+            title = re.sub(r'[\\/\*?:"<>|\n\r]+', "", raw).replace(" ", "_")[:50]
+        except Exception:
+            title = re.sub(r'[\\/\*?:"<>|\n\r]+', "", messages[0]["content"][:30]).replace(" ", "_")
+
+    # Serialize (DataFrames → dicts)
+    serialisable = []
+    for m in messages:
+        mc = m.copy()
+        if "data" in mc and isinstance(mc["data"], pd.DataFrame):
+            mc["data"] = mc["data"].to_dict(orient="records")
+        serialisable.append(mc)
+
+    json_str = json.dumps(serialisable, cls=DecimalEncoder)
+
+    # Write local JSON
+    os.makedirs(get_chats_dir(), exist_ok=True)
+    with open(os.path.join(get_chats_dir(), f"{title}.json"), "w") as f:
+        f.write(json_str)
+
+    # Sync to DB
+    upsert_db_chat(username, title, json_str)
+    return title
+
+
+def load_session(filename: str) -> list:
+    title = filename.replace(".json", "")
+    full_path = os.path.join(get_chats_dir(), filename)
+    msgs = None
+
+    if os.path.exists(full_path):
+        try:
+            with open(full_path, "r") as f:
+                msgs = json.load(f)
+        except Exception:
+            pass
+
+    if not msgs:
+        raw = load_db_chat(title)
+        if raw:
+            msgs = raw if isinstance(raw, list) else json.loads(raw)
+            with open(full_path, "w") as f:
+                json.dump(msgs, f, cls=DecimalEncoder)
+
+    if not msgs or not isinstance(msgs, list):
+        return []
+
+    result = []
+    for m in msgs:
+        if isinstance(m, dict):
+            if "data" in m and m["data"] is not None:
+                m["data"] = pd.DataFrame(m["data"])
+            result.append(m)
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DATA FORMATTING & CHARTS
+# ═══════════════════════════════════════════════════════════════════════════
+
 def smart_format_dataframe(df: pd.DataFrame):
-    """
-    Returns:
-        df_numeric  -> pure numeric (for charts / calculations)
-        df_display  -> formatted with commas/rounding (for st.dataframe UI)
-    """
-    if df.empty or len(df.columns) == 0:
+    if df.empty:
         return df, df
-        
     df_numeric = df.copy()
     df_display = df.copy()
 
-    # Apply type conversion to Decimal columns immediately to prevent precision issues
     for col in df_numeric.columns:
         if df_numeric[col].dtype == object:
             try:
-                df_numeric[col] = pd.to_numeric(df_numeric[col], errors='ignore')
-            except:
+                df_numeric[col] = pd.to_numeric(df_numeric[col], errors="ignore")
+            except Exception:
                 pass
 
-    # Identify and format numeric columns
     for col in df_numeric.columns:
-        # Check if column should be treated as numeric metric
-        # Rule: Format if it's numeric type AND (not first column OR first column is a single value)
-        is_numeric_type = pd.api.types.is_numeric_dtype(df_numeric[col])
-        
-        # Heuristic for Category column: Usually first col if there are multiple cols
-        is_category_col = (col == df_numeric.columns[0] and len(df_numeric.columns) > 1)
-        
-        # Exceptions: If it's the first col but name contains 'sale', 'rev', 'price', 'total', format it anyway
-        is_explicit_metric = any(k in str(col).lower() for k in ["sale", "rev", "price", "total", "qty", "amount"])
-        
-        if is_numeric_type and (not is_category_col or is_explicit_metric):
-            # 1. Ensure numeric for calculations
-            df_numeric[col] = pd.to_numeric(df_numeric[col], errors='coerce').fillna(0).astype(float)
-            
-            # 2. Format for display (Round to 2 decimals, add commas)
-            # Check if all values are actually integers to avoid .00 suffix
+        is_numeric = pd.api.types.is_numeric_dtype(df_numeric[col])
+        is_category = col == df_numeric.columns[0] and len(df_numeric.columns) > 1
+        is_metric = any(k in str(col).lower() for k in ["sale","rev","price","total","qty","amount"])
+
+        if is_numeric and (not is_category or is_metric):
+            df_numeric[col] = pd.to_numeric(df_numeric[col], errors="coerce").fillna(0).astype(float)
             is_all_int = (df_numeric[col] % 1 == 0).all()
             if is_all_int:
                 df_display[col] = df_numeric[col].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "")
             else:
                 df_display[col] = df_numeric[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "")
-        
-        # Specialized Date Handling
         elif "date" in str(col).lower() or "time" in str(col).lower():
             try:
-                df_display[col] = pd.to_datetime(df_numeric[col]).dt.strftime('%Y-%m-%d')
-            except:
+                df_display[col] = pd.to_datetime(df_numeric[col]).dt.strftime("%Y-%m-%d")
+            except Exception:
                 pass
 
     return df_numeric, df_display
 
-def plot_smart_chart(df: pd.DataFrame, x_col: str, y_cols: list, title: str, key: str):
-    """
-    Plots a chart with support for dual Y-axes if columns have vastly different scales
-    (e.g., Quantity in millions vs Revenue in trillions).
-    """
-    if len(y_cols) == 2:
-        v1 = df[y_cols[0]].abs().max()
-        v2 = df[y_cols[1]].abs().max()
-        
-        # Check for Scale mismatch (10x or more) or Pharma specific keywords
-        is_qty_val = any(k in y_cols[0].lower() for k in ["qty", "unit"]) and \
-                     any(k in y_cols[1].lower() for k in ["rev", "val", "price", "sale"])
-        is_val_qty = any(k in y_cols[1].lower() for k in ["qty", "unit"]) and \
-                     any(k in y_cols[0].lower() for k in ["rev", "val", "price", "sale"])
-        
-        if is_qty_val or is_val_qty or (v1 > 0 and v2 > 0 and (v1/v2 > 10 or v2/v1 > 10)):
-            fig = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            # Smaller scale usually goes on Primary Y as Bars, Larger scale on Secondary Y as Line
-            if v1 < v2:
-                p_col, s_col = y_cols[0], y_cols[1]
-            else:
-                p_col, s_col = y_cols[1], y_cols[0]
-                
-            fig.add_trace(go.Bar(x=df[x_col], y=df[p_col], name=p_col, marker_color='#636EFA'), secondary_y=False)
-            fig.add_trace(go.Scatter(x=df[x_col], y=df[s_col], name=s_col, marker_color='#EF553B', mode='lines+markers'), secondary_y=True)
-            
-            is_time_series = any(k in x_col.lower() for k in ["month", "year", "date", "day", "week"])
-            
-            # If time series, let Plotly handle numeric/linear sorting. Otherwise use categories.
-            xaxis_config = {'type': 'category', 'categoryorder': 'total descending'}
-            if is_time_series:
-                xaxis_config = {'type': None} # Auto-detect (linear sorting for numbers)
 
-            fig.update_layout(
-                title=title, template="plotly_dark", hovermode="x unified",
-                xaxis=xaxis_config,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            fig.update_yaxes(title_text=p_col, secondary_y=False)
-            fig.update_yaxes(title_text=s_col, secondary_y=True)
+def plot_smart_chart(df: pd.DataFrame, x_col: str, y_cols: list, title: str, key: str):
+    is_time = any(k in x_col.lower() for k in ["month","year","date","day","week"])
+    xaxis = {"type": None} if is_time else {"type": "category", "categoryorder": "total descending"}
+
+    if len(y_cols) == 2:
+        v1, v2 = df[y_cols[0]].abs().max(), df[y_cols[1]].abs().max()
+        qty_val = any(k in y_cols[0].lower() for k in ["qty","unit"]) and any(k in y_cols[1].lower() for k in ["rev","val","price","sale"])
+        val_qty = any(k in y_cols[1].lower() for k in ["qty","unit"]) and any(k in y_cols[0].lower() for k in ["rev","val","price","sale"])
+
+        if qty_val or val_qty or (v1 > 0 and v2 > 0 and (v1/v2 > 10 or v2/v1 > 10)):
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+            p, s = (y_cols[0], y_cols[1]) if v1 < v2 else (y_cols[1], y_cols[0])
+            fig.add_trace(go.Bar(x=df[x_col], y=df[p], name=p, marker_color="#636EFA"), secondary_y=False)
+            fig.add_trace(go.Scatter(x=df[x_col], y=df[s], name=s, marker_color="#EF553B", mode="lines+markers"), secondary_y=True)
+            fig.update_layout(title=title, template="plotly_dark", hovermode="x unified", xaxis=xaxis,
+                              legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+            fig.update_yaxes(title_text=p, secondary_y=False)
+            fig.update_yaxes(title_text=s, secondary_y=True)
             st.plotly_chart(fig, use_container_width=True, key=key)
             return
 
-    # Standard Grouped Bar
-    is_time_series = any(k in x_col.lower() for k in ["month", "year", "date", "day", "week"])
-    xaxis_config = {'type': 'category', 'categoryorder': 'total descending'}
-    if is_time_series:
-        xaxis_config = {'type': None}
-
-    fig = px.bar(df, x=x_col, y=y_cols, barmode='group', template="plotly_dark", title=title)
-    fig.update_layout(xaxis=xaxis_config)
+    fig = px.bar(df, x=x_col, y=y_cols, barmode="group", template="plotly_dark", title=title)
+    fig.update_layout(xaxis=xaxis)
     st.plotly_chart(fig, use_container_width=True, key=key)
 
-def get_query_cache_path():
-    return os.path.join(get_chats_dir(), "query_cache.json")
 
-def load_query_cache():
-    cache_path = get_query_cache_path()
-    if os.path.exists(cache_path):
-        with open(cache_path, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_to_query_cache(question, sql):
-    cache = load_query_cache()
-    normalized_q = question.lower().strip()
-    cache[normalized_q] = sql
-    with open(get_query_cache_path(), "w") as f:
-        json.dump(cache, f, indent=4)
-
-def get_chats_dir():
-    username = st.session_state.get("username", "default")
-    d = os.path.join("chats", str(username).strip())
-    if not os.path.exists(d):
-        os.makedirs(d)
-    return d
-
-def upsert_db_chat(username, session_id, messages_json):
-    """Saves chat history to PostgreSQL for redundancy and cross-device access."""
-    try:
-        clean_url = DB_URL.split('?')[0] if DB_URL else ""
-        conn = psycopg2.connect(clean_url)
-        with conn.cursor() as cur:
-            # Postgres UPSERT (Insert or Update on Conflict)
-            query = """
-                INSERT INTO app_chat_history (username, session_id, history_json, updated_at)
-                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (session_id) 
-                DO UPDATE SET history_json = EXCLUDED.history_json, updated_at = CURRENT_TIMESTAMP;
-            """
-            cur.execute(query, (username, session_id, messages_json))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"DB Save Warning: {e}")
-
-def save_session(session_id, messages):
-    if not messages: return
-    username = st.session_state.get("username", "default")
-    
-    # 1. Title Generation
-    title = session_id
-    if len(messages) >= 1:
-        first_q = messages[0]["content"]
-        if session_id.startswith("New_Session_"):
-            try:
-                res = client.chat.completions.create(
-                    model=LLM_MODEL,
-                    messages=[{"role": "user", "content": f"Briefly title this pharma data question (max 4 words). Output ONLY the 4 words: {first_q}"}],
-                    timeout=5.0
-                )
-                raw_title = res.choices[0].message.content.strip()
-                clean_title = re.sub(r'[\\/*?:"<>|\n\r]+', "", raw_title)
-                title = clean_title.replace(" ", "_")[:50]
-            except:
-                clean_fq = re.sub(r'[\\/*?:"<>|\n\r]+', "", first_q[:30])
-                title = clean_fq.replace(" ", "_")
-    
-    # 2. Serialization
-    serializable_msgs = []
-    for m in messages:
-        m_copy = m.copy()
-        if "data" in m_copy and isinstance(m_copy["data"], pd.DataFrame):
-            m_copy["data"] = m_copy["data"].to_dict(orient="records")
-        serializable_msgs.append(m_copy)
-    
-    msgs_json_str = json.dumps(serializable_msgs, cls=DecimalEncoder)
-    
-    # 3. Save to JSON File
-    file_path = os.path.join(get_chats_dir(), f"{title}.json")
-    with open(file_path, "w") as f:
-        f.write(msgs_json_str)
-    
-    # 4. Save to Database (New Feature!)
-    upsert_db_chat(username, title, msgs_json_str)
-    
-    return title
-
-def load_session(filename):
-    username = st.session_state.get("username", "default")
-    title = filename.replace(".json", "")
-    full_path = os.path.join(get_chats_dir(), filename)
-    
-    msgs = None
-    
-    # Priority 1: Try Local JSON
-    if os.path.exists(full_path):
-        try:
-            with open(full_path, "r") as f:
-                msgs = json.load(f)
-        except:
-            pass
-
-    # Priority 2: Fallback to Database if file missing/corrupt
-    if not msgs:
-        try:
-            clean_url = DB_URL.split('?')[0] if DB_URL else ""
-            conn = psycopg2.connect(clean_url)
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT history_json FROM app_chat_history WHERE session_id = %s", (title,))
-                res = cur.fetchone()
-                if res and res['history_json']:
-                    msgs = res['history_json']
-                    # Sync back to local if possible
-                    with open(full_path, "w") as f:
-                        json.dump(msgs, f, cls=DecimalEncoder)
-            conn.close()
-        except:
-            pass
-
-    if not msgs or not isinstance(msgs, list):
-        return []
-
-    # Final cleanup of DataFrames
-    valid_msgs = []
-    for m in msgs:
-        if isinstance(m, dict):
-            if "data" in m and m["data"] is not None:
-                m["data"] = pd.DataFrame(m["data"])
-            valid_msgs.append(m)
-    return valid_msgs
-
-# --- DATABASE ENGINE ---
-def run_sql_query(query: str):
-    # Strip SQL comments and whitespace before validation
-    clean_q = re.sub(r'(--.*)|(/\*[\s\S]*?\*/)', '', query).strip().upper()
-    
-    forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE"]
-    
-    if not (clean_q.startswith("SELECT") or clean_q.startswith("WITH")):
-        return {"error": "Only SELECT or WITH queries are allowed."}
-    
-    for word in forbidden:
-        if re.search(rf'\b{word}\b', clean_q):
-            return {"error": f"Keyword {word} is not allowed."}
-
-    try:
-        clean_url = DB_URL.split('?')[0] if DB_URL else ""
-        conn = psycopg2.connect(clean_url)
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(query)
-            return cur.fetchall()
-    except Exception as e:
-        return {"error": str(e)}
-
-@st.cache_data(ttl=3600)
-def get_schema():
-    try:
-        with open("prisma/schema.prisma", "r") as f:
-            return f.read()
-    except:
-        return "Schema unavailable."
-
-@st.cache_data(ttl=600)
-def get_rag_context(user_query: str):
-    """Retrieves relevant business logic and SQL examples."""
-    context = ""
-    knowledge_dir = "knowledge"
-    if os.path.exists(knowledge_dir):
-        for filename in os.listdir(knowledge_dir):
-            if filename.endswith(".md"):
-                with open(os.path.join(knowledge_dir, filename), "r") as f:
-                    content = f.read()
-                    context += f"\n--- From {filename} ---\n{content}\n"
-    
-    # Add explicit instructions for complex joins and case-insensitive matching
-    context += "\n--- MASTER SQL RULES (MANDATORY) ---\n"
-    context += "1. USE 'master_sale' FOR INTERNAL METRICS: It has product_name, product_quantity, total_amount, region_name, zone_name, area_name, invoice_date, month_number, year_number, month_name.\n"
-    context += "   - NOTE: 'sale_date' does NOT exist. Use 'invoice_date' for the full date.\n"
-    context += "2. JOINING BRICK NAMES: 'master_sale' does NOT have brick_name. For brick-level internal sales, use this join:\n"
-    context += "   SELECT ib.name, SUM(ms.product_quantity) FROM master_sale ms JOIN customer_details cd ON ms.customer_id = cd.customer_id JOIN ims_brick ib ON cd.ims_brick_id = ib.id GROUP BY ib.name\n"
-    context += "3. NO CARTESIAN PRODUCTS: Never join 'ims_sale' and 'invoice_details' (or 'master_sale') in a single table join. It will multiply the numbers incorrectly.\n"
-    context += "   - To compare Internal vs Market, use CTEs (Common Table Expressions):\n"
-    context += "   WITH Internal AS (SELECT ib.name, SUM(ms.product_quantity) as qty FROM master_sale ms JOIN customer_details cd ON ms.customer_id = cd.customer_id JOIN ims_brick ib ON cd.ims_brick_id = ib.id GROUP BY 1),\n"
-    context += "        Market AS (SELECT ib.name, SUM(unit) as qty FROM ims_sale s JOIN ims_brick ib ON s.\"brickId\" = ib.id GROUP BY 1)\n"
-    context += "   SELECT i.name, i.qty AS \"Internal\", m.qty AS \"Market\" FROM Internal i JOIN Market m ON i.name = m.name\n"
-    context += "4. FUZZY SEARCH (ILIKE): For all user filters (like 'Gulshan'), use ILIKE with wildcards: WHERE ib.name ILIKE '%gulshan%'.\n"
-    context += "5. GULSHAN AGGREGATION: Gulshan has many blocks (Block 5, 6, etc.). Always use ILIKE '%gulshan%' to aggregate all of them.\n"
-    context += "6. EMPTY TABLES: 'orders' and 'targets' are EMPTY. For sales, always use 'master_sale' or 'invoice_details'.\n"
-    return context
+# ═══════════════════════════════════════════════════════════════════════════
+# EXECUTIVE KPIs  (cached 30 min)
+# ═══════════════════════════════════════════════════════════════════════════
 
 @st.cache_data(ttl=1800)
-def get_executive_kpis():
-    """Fetches high-level business metrics for the homepage."""
-    kpis = {
-        "internal_sales": 0,
-        "market_sales": 0,
-        "top_brick": "N/A",
-        "doc_count": 0
-    }
-    
-    # 1. Total Internal Units (from Invoices)
-    res = run_sql_query('SELECT SUM(CAST("product_quantity" AS NUMERIC)) as total FROM "invoice_details"')
-    if res and not isinstance(res, dict): kpis["internal_sales"] = res[0]["total"] or 0
-    
-    # 2. Total Market Units (from IMS)
-    res = run_sql_query('SELECT SUM("unit") as total FROM "ims_sale"')
-    if res and not isinstance(res, dict): kpis["market_sales"] = res[0]["total"] or 0
-    
-    # 3. Top Performing Brick
-    res = run_sql_query('''
-        SELECT "b"."name", SUM(CAST("id"."product_quantity" AS NUMERIC)) as total 
-        FROM "ims_brick" "b"
-        JOIN "customer_details" "cd" ON "b"."id" = "cd"."ims_brick_id"
-        JOIN "invoice" "inv" ON "cd"."customer_id" = "inv"."cust_id"
-        JOIN "invoice_details" "id" ON "inv"."id" = "id"."invoice_id"
-        GROUP BY "b"."name" ORDER BY total DESC LIMIT 1
+def get_executive_kpis() -> dict:
+    kpis = {"internal_sales": 0, "market_sales": 0, "top_brick": "N/A", "doc_count": 0}
+    r = run_sql_query('SELECT SUM(CAST("product_quantity" AS NUMERIC)) as total FROM "invoice_details"')
+    if isinstance(r, list) and r: kpis["internal_sales"] = r[0].get("total") or 0
+    r = run_sql_query('SELECT SUM("unit") as total FROM "ims_sale"')
+    if isinstance(r, list) and r: kpis["market_sales"] = r[0].get("total") or 0
+    r = run_sql_query('''
+        SELECT b.name, SUM(CAST(id.product_quantity AS NUMERIC)) as total
+        FROM ims_brick b
+        JOIN customer_details cd ON b.id = cd.ims_brick_id
+        JOIN invoice inv ON cd.customer_id = inv.cust_id
+        JOIN invoice_details id ON inv.id = id.invoice_id
+        GROUP BY b.name ORDER BY total DESC LIMIT 1
     ''')
-    if res and not isinstance(res, dict): kpis["top_brick"] = res[0]["name"]
-    
-    # 4. Total Active Doctors
-    res = run_sql_query('SELECT COUNT(*) as total FROM "doctors"')
-    if res and not isinstance(res, dict): kpis["doc_count"] = res[0]["total"] or 0
-    
+    if isinstance(r, list) and r: kpis["top_brick"] = r[0].get("name", "N/A")
+    r = run_sql_query('SELECT COUNT(*) as total FROM "doctors"')
+    if isinstance(r, list) and r: kpis["doc_count"] = r[0].get("total") or 0
     return kpis
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="Pharma Intelligence", page_icon="💊", layout="wide")
 
-# --- SESSION INITIALIZATION ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "current_session" not in st.session_state:
-    st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
-if "prompt_trigger" not in st.session_state:
-    st.session_state.prompt_trigger = None
-if "username" not in st.session_state:
-    st.session_state.username = None
+@st.cache_data(ttl=3600)
+def get_globe_data_cached(show_sales: bool):
+    import psycopg2
+    from db import _CLEAN_URL
+    conn = psycopg2.connect(_CLEAN_URL)
+    if show_sales:
+        h_sql = """SELECT hc.latitude::float, hc.longitude::float, hc.name,
+                          'Health Centre' as type,
+                          SUM(CAST(ms.total_amount AS NUMERIC)) as sales,
+                          COALESCE(hc.address, hc.name, '') as address
+                   FROM healthcentres hc
+                   LEFT JOIN master_sale ms ON ms.customer_name ILIKE hc.name
+                   WHERE hc.latitude IS NOT NULL
+                   GROUP BY 1,2,3,4,6"""
+        c_sql = """SELECT c.latitude::float, c.longitude::float, c.name,
+                          'Customer' as type,
+                          SUM(CAST(ms.total_amount AS NUMERIC)) as sales,
+                          COALESCE(ib.name,'') as brick_name, '' as address
+                   FROM customers c
+                   LEFT JOIN master_sale ms ON ms.customer_name ILIKE c.name
+                   LEFT JOIN customer_details cd ON cd.customer_id = c.id
+                   LEFT JOIN ims_brick ib ON ib.id = cd.ims_brick_id
+                   WHERE c.latitude IS NOT NULL
+                   GROUP BY 1,2,3,4,6,7"""
+    else:
+        h_sql = "SELECT latitude::float, longitude::float, name, 'Health Centre' as type, 0 as sales, COALESCE(address,name,'') as address FROM healthcentres WHERE latitude IS NOT NULL"
+        c_sql = "SELECT c.latitude::float, c.longitude::float, c.name, 'Customer' as type, 0 as sales, COALESCE(ib.name,'') as brick_name, '' as address FROM customers c LEFT JOIN customer_details cd ON cd.customer_id=c.id LEFT JOIN ims_brick ib ON ib.id=cd.ims_brick_id WHERE c.latitude IS NOT NULL"
+
+    h_df = pd.read_sql(h_sql, conn)
+    c_df = pd.read_sql(c_sql, conn)
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='doctors'")
+        cols = [r[0].lower() for r in cur.fetchall()]
+    link_col = next((c for c in ["customersid","customerid"] if c in cols), None)
+    if link_col:
+        d_df = pd.read_sql(
+            f'SELECT c.latitude::float, c.longitude::float, d.name, \'Doctor\' as type, 0 as sales, \'\' as address, \'\' as brick_name FROM doctors d JOIN customers c ON d."{link_col}"=c.id WHERE c.latitude IS NOT NULL LIMIT 80',
+            conn,
+        )
+    else:
+        d_df = pd.DataFrame(columns=["latitude","longitude","name","type","sales","address","brick_name"])
+
+    conn.close()
+    return h_df, c_df, d_df
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAP / LOCATION HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def is_map_intent(text: str) -> bool:
+    keywords = ["location","map","dikhao map","map pr","map par","nakshe","kahan hai",
+                "kahan ha","show on map","locate","address","coordinates","gps",
+                "kahan hain","location show"]
+    return any(k in text.lower() for k in keywords)
+
+
+def extract_entity_name(prompt: str) -> str:
+    noise = ["ki location dikhao","ka location dikhao","location dikhao","location show kro",
+             "ko map par dikhao","ko map pr dikhao","map par dikhao","map pr dikhao",
+             "show on map","locate karo","kahan hai","kahan ha","kahan hain",
+             "location","map","dikhao","dikha","show","locate","address","coordinates","gps"]
+    cleaned = prompt.strip()
+    for n in sorted(noise, key=len, reverse=True):
+        cleaned = re.sub(n, "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"^(ki|ka|ke|mujhe|mujhay|is|iss)\s+", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"\s+(ki|ka|ke|pr|par)$", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = cleaned.strip(".,?!'\"").strip()
+    if cleaned and cleaned.lower() not in ["none","","dr","doctor"]:
+        return cleaned
+    try:
+        resp = llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role":"user","content":f"Extract ONLY the doctor or clinic name from: '{prompt}'. Return ONLY the name."}],
+            timeout=8.0,
+        )
+        name = resp.choices[0].message.content.strip().strip("\"'")
+        if name and name.lower() not in ["none","null","","n/a"]:
+            return name
+    except Exception:
+        pass
+    words = [w for w in prompt.split() if len(w) > 2 and (w[0].isupper() or w.isupper())]
+    return " ".join(words) if words else prompt
+
+
+def extract_multiple_entities(prompt: str) -> list:
+    clean = re.sub(r"\s+(teeno|dono|sab|ke sath|k sath)\s+", " ", prompt, flags=re.IGNORECASE)
+    parts = re.split(r"\s+(?:or|and|aur)\s+|\s*[+&/,،]\s*", clean, flags=re.IGNORECASE)
+    names = [extract_entity_name(p.strip()) for p in parts]
+    return [n for n in names if n and n.lower() not in ["none","","null"]] or [extract_entity_name(prompt)]
+
+
+def fetch_location_for_entity(entity_name: str) -> list:
+    import psycopg2
+    from db import _CLEAN_URL
+    conn = psycopg2.connect(_CLEAN_URL)
+    results = []
+    try:
+        from psycopg2.extras import RealDictCursor
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            for table, type_label in [
+                ("customers",    "Customer"),
+                ("healthcentres","Health Centre"),
+            ]:
+                cur.execute(
+                    f'SELECT name, latitude::float, longitude::float, %s as entity_type FROM "{table}" WHERE name ILIKE %s AND latitude IS NOT NULL LIMIT 3',
+                    (type_label, f"%{entity_name}%"),
+                )
+                rows = cur.fetchall()
+                for row in rows:
+                    addr = reverse_geocode(row["latitude"], row["longitude"])
+                    results.append({**dict(row), "address": addr, "pin_color": "red" if type_label == "Customer" else "blue"})
+    except Exception as e:
+        print(f"[Location Error] {e}")
+    finally:
+        conn.close()
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MESSAGE HELPERS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def submit_question(q: str):
+    st.session_state.prompt_trigger = q
+
+
+def delete_message(msg_id: str):
+    msgs = st.session_state.messages
+    target = next((i for i, m in enumerate(msgs) if m.get("msg_id") == msg_id), -1)
+    if target == -1:
+        return
+    role = msgs[target]["role"]
+    if role == "assistant" and target > 0 and msgs[target - 1]["role"] == "user":
+        msgs.pop(target); msgs.pop(target - 1)
+    elif role == "user" and target < len(msgs) - 1 and msgs[target + 1]["role"] == "assistant":
+        msgs.pop(target + 1); msgs.pop(target)
+    else:
+        msgs.pop(target)
+    save_session(st.session_state.current_session, msgs)
+    st.rerun()
+
+
+def render_map(map_rows: list, key: str):
+    map_df = pd.DataFrame(map_rows)
+    try:
+        import folium
+        from streamlit_folium import st_folium
+        vlat, vlng = map_df["latitude"].mean(), map_df["longitude"].mean()
+        m = folium.Map(
+            location=[vlat, vlng], zoom_start=14,
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri",
+        )
+        for _, row in map_df.iterrows():
+            folium.Marker(
+                location=[row["latitude"], row["longitude"]],
+                popup=folium.Popup(
+                    f"<b>{row['name']}</b><br>Type: {row.get('entity_type','')}<br>📍 {row.get('address','')}",
+                    max_width=300,
+                ),
+                tooltip=row["name"],
+                icon=folium.Icon(color=row.get("pin_color", "blue"), icon="info-sign"),
+            ).add_to(m)
+        st_folium(m, width=700, height=400, key=key)
+    except Exception:
+        st.map(map_df.rename(columns={"latitude": "lat", "longitude": "lon"})[["lat", "lon"]])
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SESSION STATE INIT
+# ═══════════════════════════════════════════════════════════════════════════
+
+for key, default in [
+    ("messages",        []),
+    ("current_session", f"New_Session_{int(pd.Timestamp.now().timestamp())}"),
+    ("prompt_trigger",  None),
+    ("username",        None),
+    ("conv_history",    []),   # LLM conversation history for follow-ups
+]:
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LOGIN
+# ═══════════════════════════════════════════════════════════════════════════
 
 if not st.session_state.username:
-    import bcrypt
-
-    def verify_db_login(user_clean, pass_clean):
-        if user_clean == "admin" and pass_clean == "admin":
-            return True
-            
-        safe_user = user_clean.replace("'", "''")
-        pass_bytes = pass_clean.encode('utf-8')
-        
-        # 1. Check managers table
-        q1 = f"SELECT password FROM managers WHERE email ILIKE '{safe_user}' OR name ILIKE '{safe_user}' LIMIT 1"
-        res1 = run_sql_query(q1)
-        if isinstance(res1, list) and len(res1) > 0 and res1[0].get("password"):
-            db_hash = res1[0].get("password").encode('utf-8')
-            try:
-                if bcrypt.checkpw(pass_bytes, db_hash):
-                    return True
-            except:
-                pass
-                
-        # 2. Check users table
-        q2 = f"SELECT password FROM users WHERE email ILIKE '{safe_user}' OR firstname ILIKE '{safe_user}' LIMIT 1"
-        res2 = run_sql_query(q2)
-        if isinstance(res2, list) and len(res2) > 0 and res2[0].get("password"):
-            db_hash = str(res2[0].get("password")).encode('utf-8')
-            try:
-                if bcrypt.checkpw(pass_bytes, db_hash):
-                    return True
-            except:
-                if str(res2[0].get("password")) == pass_clean: # Fallback plain integer/text matching just in case
-                    return True
-                
-        return False
-
-    # --- PREMIUM LOGIN UI ---
     st.markdown("""
-        <style>
-        [data-testid="stAppViewContainer"] {
-            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-            background-attachment: fixed;
-        }
-        .login-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.1);
-            max-width: 450px;
-            margin: 50px auto;
-            text-align: center;
-        }
-        .stButton > button {
-            background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            padding: 12px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .stButton > button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
-        }
-        </style>
+    <style>
+    [data-testid="stAppViewContainer"] {
+        background: linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);
+        background-attachment: fixed;
+    }
+    .login-card {
+        background: rgba(30,41,59,0.7); backdrop-filter: blur(12px);
+        border-radius: 20px; padding: 40px;
+        box-shadow: 0 15px 35px rgba(0,0,0,.4);
+        border: 1px solid rgba(255,255,255,.1);
+        max-width: 450px; margin: 50px auto; text-align: center;
+    }
+    .stButton>button {
+        background: linear-gradient(90deg,#6366f1,#a855f7); color: white;
+        border: none; border-radius: 10px; padding: 12px; font-weight: 600;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="login-card">', unsafe_allow_html=True)
-    st.markdown("<h1 style='color: white; font-family: Outfit, sans-serif; font-size: 2.5rem; margin-bottom: 0;'>👤</h1>", unsafe_allow_html=True)
-    st.markdown("<h2 style='color: white; font-family: Outfit, sans-serif;'>Intelligence Login</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #94a3b8;'>Pharma Insights & Strategy Portal</p>", unsafe_allow_html=True)
-    
-    with st.form("premium_login"):
-        user_input = st.text_input("Email / Username Address", placeholder="e.g. admin@pharma.com")
-        pass_input = st.text_input("Access Key", type="password", placeholder="••••••••")
+    st.markdown("<h1 style='color:white;font-family:Outfit,sans-serif;font-size:2.5rem'>👤</h1>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:white;font-family:Outfit,sans-serif'>Intelligence Login</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94a3b8'>Pharma Insights & Strategy Portal</p>", unsafe_allow_html=True)
+
+    with st.form("login_form"):
+        user_in = st.text_input("Email / Username", placeholder="e.g. admin@pharma.com")
+        pass_in = st.text_input("Access Key", type="password", placeholder="••••••••")
         st.write("")
-        submit = st.form_submit_button("SIGN IN TO DASHBOARD", use_container_width=True)
-        
-        if submit:
-            user_clean = user_input.strip()
-            if not user_clean:
-                st.error("Access Denied: Please enter a username.")
-            elif verify_db_login(user_clean, pass_input):
-                st.session_state.username = user_clean
-                st.rerun()
-            else:
-                st.error("Authentication Failed! Check your credentials.")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+        submitted = st.form_submit_button("SIGN IN TO DASHBOARD", use_container_width=True)
+
+    if submitted:
+        if not user_in.strip():
+            st.error("Please enter a username.")
+        elif verify_login(user_in.strip(), pass_in):   # ← uses parameterized db.verify_login
+            st.session_state.username = user_in.strip()
+            st.rerun()
+        else:
+            st.error("Authentication failed. Check your credentials.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-# --- PREMIUM MAIN THEME & CSS ---
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN THEME
+# ═══════════════════════════════════════════════════════════════════════════
+
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-
 <style>
-    /* Global Overrides */
-    .main { 
-        background: #0f172a; 
-        color: #f8fafc; 
-        font-family: 'Inter', sans-serif;
-    }
-    
-    h1, h2, h3, .stButton { 
-        font-family: 'Outfit', sans-serif; 
-    }
-
-    /* Professional Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #1e293b !important;
-        border-right: 1px solid rgba(255,255,255,0.05);
-    }
-
-    /* Chat Elements */
-    .stChatMessage { 
-        border-radius: 16px !important; 
-        padding: 20px !important;
-        margin-bottom: 12px !important;
-        border: 1px solid rgba(255,255,255,0.05) !important;
-    }
-    
-    [data-testid="stChatMessage-user"] {
-        background: rgba(99, 102, 241, 0.1) !important;
-        border-left: 4px solid #6366f1 !important;
-    }
-    
-    [data-testid="stChatMessage-assistant"] {
-        background: rgba(30, 41, 59, 0.6) !important;
-        border-right: 4px solid #a855f7 !important;
-    }
-
-    /* Data Containers */
-    .stDataFrame {
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.05);
-    }
-    
-    /* Metrics Highlighting */
-    .stMetric {
-        background: rgba(255,255,255,0.03);
-        padding: 15px;
-        border-radius: 12px;
-        border: 1px solid rgba(255,255,255,0.05);
-    }
-
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+.main { background:#0f172a; color:#f8fafc; font-family:'Inter',sans-serif; }
+h1,h2,h3,.stButton { font-family:'Outfit',sans-serif; }
+[data-testid="stSidebar"] { background-color:#1e293b!important; border-right:1px solid rgba(255,255,255,.05); }
+.stChatMessage { border-radius:16px!important; padding:20px!important; margin-bottom:12px!important; border:1px solid rgba(255,255,255,.05)!important; }
+[data-testid="stChatMessage-user"] { background:rgba(99,102,241,.1)!important; border-left:4px solid #6366f1!important; }
+[data-testid="stChatMessage-assistant"] { background:rgba(30,41,59,.6)!important; border-right:4px solid #a855f7!important; }
+.stDataFrame { border-radius:12px; border:1px solid rgba(255,255,255,.05); }
+.stMetric { background:rgba(255,255,255,.03); padding:15px; border-radius:12px; border:1px solid rgba(255,255,255,.05); }
+::-webkit-scrollbar{width:8px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#334155;border-radius:10px}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='color: white; margin-bottom: 0;'>💊 Pharma Intel Agent</h1>", unsafe_allow_html=True)
-st.caption("Strategic Decision Support with RAG Memory")
+st.markdown("<h1 style='color:white;margin-bottom:0'>💊 Pharma Intel Agent</h1>", unsafe_allow_html=True)
+st.caption("Strategic Decision Support · RAG Memory · Self-Correcting SQL")
 st.divider()
 
-def delete_db_chat(session_id):
-    """Removes chat history from PostgreSQL."""
-    try:
-        clean_url = DB_URL.split('?')[0] if DB_URL else ""
-        conn = psycopg2.connect(clean_url)
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM app_chat_history WHERE session_id = %s", (session_id,))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"DB Delete Warning: {e}")
 
-# --- SIDEBAR ---
+# ═══════════════════════════════════════════════════════════════════════════
+# SIDEBAR
+# ═══════════════════════════════════════════════════════════════════════════
+
 with st.sidebar:
-    st.header(f"🧑‍💼 Welcome, {st.session_state.username}")
+    st.header(f"🧑‍💼 {st.session_state.username}")
     if st.button("🚪 Logout"):
-        st.session_state.username = None
-        st.session_state.messages = []
+        for k in ["username","messages","current_session","conv_history"]:
+            st.session_state[k] = None if k == "username" else ([] if "messages" in k or "history" in k else st.session_state[k])
         st.rerun()
+
     st.divider()
-    st.header("📂 Chat Sessions")
-    chat_files = [f for f in os.listdir(get_chats_dir()) if f.endswith(".json") and f not in ["query_cache.json", "users.json"]]
-    
+    st.header("📂 Sessions")
+
+    chat_files = [
+        f for f in os.listdir(get_chats_dir())
+        if f.endswith(".json") and f not in ["query_cache.json","users.json"]
+    ]
+
     if st.button("➕ New Chat"):
         st.session_state.messages = []
+        st.session_state.conv_history = []
         st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
         st.rerun()
 
     if chat_files:
-        selected_chat = st.selectbox("Past Conversations", ["Select..."] + chat_files)
-        if selected_chat != "Select...":
-            col1, col2 = st.columns(2)
-            with col1:
+        sel = st.selectbox("Past Conversations", ["Select..."] + chat_files)
+        if sel != "Select...":
+            c1, c2 = st.columns(2)
+            with c1:
                 if st.button("📂 Load"):
-                    st.session_state.messages = load_session(selected_chat)
-                    st.session_state.current_session = selected_chat.replace(".json", "")
+                    st.session_state.messages = load_session(sel)
+                    st.session_state.conv_history = []
+                    st.session_state.current_session = sel.replace(".json", "")
                     st.rerun()
-            with col2:
+            with c2:
                 if st.button("🗑️ Delete"):
-                    session_title = selected_chat.replace(".json", "")
-                    file_to_del = os.path.join(get_chats_dir(), selected_chat)
-                    
-                    # 1. Delete Local JSON
-                    if os.path.exists(file_to_del):
-                        os.remove(file_to_del)
-                    
-                    # 2. Delete from Database (New Sync!)
-                    delete_db_chat(session_title)
-                    
+                    title = sel.replace(".json", "")
+                    fp = os.path.join(get_chats_dir(), sel)
+                    if os.path.exists(fp): os.remove(fp)
+                    delete_db_chat(title)
                     st.session_state.messages = []
                     st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
-                    st.toast(f"Deleted {selected_chat} from Local & DB")
+                    st.toast(f"Deleted {sel}")
                     st.rerun()
-    
+
     st.divider()
-    with st.expander("📊 Data Health Check"):
-        st.success("IMS Market Sales: 156k+ records")
-        st.success("Internal Sales (Invoices): 55k+ records")
-        st.success("Doctors: 211 records")
-        st.success("Sales Targets: 4,112 records")
-        st.warning("⚠️ Orders: 0 records")
-    
-    st.divider()
+    with st.expander("📊 Data Health"):
+        st.success("IMS Market Sales: live")
+        st.success("Internal Sales: live")
+        st.success("Doctors: live")
+        st.warning("⚠️ Orders: empty table")
+
     if st.button("Clear History"):
         st.session_state.messages = []
-    
+        st.session_state.conv_history = []
 
-# --- HELPER: Handle question submission ---
-def submit_question(q):
-    st.session_state.prompt_trigger = q
 
-def delete_message(msg_id):
-    # Find the index of the message with this ID
-    target_idx = -1
-    for i, m in enumerate(st.session_state.messages):
-        if m.get("msg_id") == msg_id:
-            target_idx = i
-            break
-            
-    if target_idx != -1:
-        # If it's an assistant message, delete it and its preceding user message
-        if st.session_state.messages[target_idx]["role"] == "assistant":
-            if target_idx > 0 and st.session_state.messages[target_idx - 1]["role"] == "user":
-                # Message + Preceding Question
-                st.session_state.messages.pop(target_idx)
-                st.session_state.messages.pop(target_idx - 1)
-            else:
-                st.session_state.messages.pop(target_idx)
-        # If it's a user message, check if following message is the assistant's answer
-        elif st.session_state.messages[target_idx]["role"] == "user":
-            if target_idx < len(st.session_state.messages) - 1 and st.session_state.messages[target_idx + 1]["role"] == "assistant":
-                # Question + Following Answer
-                st.session_state.messages.pop(target_idx + 1)
-                st.session_state.messages.pop(target_idx)
-            else:
-                st.session_state.messages.pop(target_idx)
-        
-        # Save updated state
-        save_session(st.session_state.current_session, st.session_state.messages)
-        st.rerun()
+# ═══════════════════════════════════════════════════════════════════════════
+# TABS
+# ═══════════════════════════════════════════════════════════════════════════
 
-# --- APP NAVIGATION & INPUTS ---
-st.session_state.prompt_trigger = st.session_state.get("prompt_trigger", None)
 user_input = st.chat_input("Ask about your pharma data...")
 prompt = user_input or st.session_state.prompt_trigger
 
 tab1, tab2 = st.tabs(["💬 AI Chat Agent", "🌍 Intelligence Globe"])
 
+# ─────────────────────────────────────────────
+# TAB 1 — CHAT
+# ─────────────────────────────────────────────
 with tab1:
-    st.caption("Strategic Decision Support with RAG Memory")
+    st.caption("Ask questions in English or Roman Urdu")
     st.divider()
 
-    # --- STARTER QUESTIONS (Show only if no messages) ---
+    # Starter buttons
     if not st.session_state.messages:
         st.write("### 💡 Start with a sample report:")
-        all_starters = [
+        starters = random.sample([
             "Compare top 5 bricks by internal units vs market units",
             "Show me top 5 Category A doctors",
             "Which 3 products have the highest invoice quantity?",
             "Compare internal sales vs market sales in F.B.AREA",
             "Which brick has the highest internal units sold?",
             "List top 5 doctors by visit count in doctor_plan",
-            "Compare market units of 'Product A' vs 'Product B' across bricks",
             "Show internal sales trend for F.B.AREA region",
             "Which Team has the highest target vs achievement?",
-            "What is the market share of Karachi brick?"
-        ]
-        random.shuffle(all_starters)
-        starters = all_starters[:4]
-        
+            "What is the market share of Karachi brick?",
+        ], 4)
         cols = st.columns(2)
         for i, s in enumerate(starters):
             with cols[i % 2]:
-                st.button(s, key=f"starter_{s}", on_click=submit_question, args=(s,))
+                st.button(s, key=f"starter_{i}", on_click=submit_question, args=(s,))
 
-    # --- CHAT MESSAGES ---
+    # Render existing messages
     for idx, message in enumerate(st.session_state.messages):
-        with st.chat_message(message["role"]):
+        # Determine avatar: standard for AI, Globe for web search
+        avatar = "🌐" if message.get("is_web") else None
+        with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
-            
             m_id = message.get("msg_id", f"static_{idx}")
 
-            # --- MAP DATA RE-RENDER (Persistent Map in History) ---
+            # Re-render map from history
             if message.get("map_data"):
-                map_rows = message["map_data"]
-                map_df = pd.DataFrame(map_rows)
-                st.dataframe(map_df[["name", "entity_type", "latitude", "longitude"]], use_container_width=True)
-                try:
-                    import folium
-                    from streamlit_folium import st_folium
-                    view_lat = map_df["latitude"].mean()
-                    view_lng = map_df["longitude"].mean()
-                    m = folium.Map(
-                        location=[view_lat, view_lng], zoom_start=14,
-                        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                        attr="Esri"
-                    )
-                    for _, row in map_df.iterrows():
-                        pin_col = row.get("pin_color", "blue")
-                        folium.Marker(
-                            location=[row["latitude"], row["longitude"]],
-                            popup=folium.Popup(
-                                f"<b>{row['name']}</b><br>"
-                                f"Type: {row.get('entity_type','')}<br>"
-                                f"Area: {row.get('brick_name','')}<br>"
-                                f"📍 {row.get('address','')}",
-                                max_width=300
-                            ),
-                            tooltip=f"{row['name']} — click for address",
-                            icon=folium.Icon(color=pin_col, icon="info-sign")
-                        ).add_to(m)
-                    st_folium(m, width=700, height=400, key=f"hist_map_{idx}")
-                except:
-                    map_st = map_df.rename(columns={"latitude": "lat", "longitude": "lon"})
-                    st.map(map_st[["lat", "lon"]], use_container_width=True)
-            
-            # --- Compact Header for SQL, Download & Delete ---
+                render_map(message["map_data"], key=f"hist_map_{idx}")
+
+            # Re-render table + chart from history
             if "data" in message and message["data"] is not None:
                 df_raw = pd.DataFrame(message["data"])
-                df_numeric_hist, df_display_hist = smart_format_dataframe(df_raw)
-                
-                header_cols = st.columns([1, 1, 4])
-                with header_cols[0]:
+                df_num, df_disp = smart_format_dataframe(df_raw)
+
+                h1, h2, _ = st.columns([1, 1, 5])
+                with h1:
                     if st.button("🗑️", key=f"del_{m_id}", help="Delete"):
                         delete_message(m_id)
-                        st.rerun()
-                with header_cols[1]:
-                    csv = df_display_hist.to_csv(index=False).encode('utf-8')
-                    st.download_button(label="📥 CSV", data=csv, file_name=f"data_{idx}.csv", key=f"dl_{idx}")
-                
-                # --- Table Display ---
-                st.dataframe(df_display_hist, use_container_width=True)
-                
-                # --- AUTO-MAP FOR SQL RESULTS ---
-                # Key addition: If SQL result has coords, show map!
-                if "latitude" in df_raw.columns and "longitude" in df_raw.columns:
-                    map_df_sql = df_raw.dropna(subset=["latitude", "longitude"])
-                    if not map_df_sql.empty:
-                        with st.expander("🗺️ Interactive Map of Results", expanded=True):
-                            try:
-                                import folium
-                                from streamlit_folium import st_folium
-                                # Simple average for center
-                                vlat, vlng = map_df_sql["latitude"].mean(), map_df_sql["longitude"].mean()
-                                m_sql = folium.Map(location=[vlat, vlng], zoom_start=13, tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr="Esri")
-                                for _, row in map_df_sql.iterrows():
-                                    folium.Marker(
-                                        location=[row["latitude"], row["longitude"]],
-                                        popup=f"<b>{row.get('name', 'Record')}</b><br>Lat: {row['latitude']}<br>Lng: {row['longitude']}",
-                                        icon=folium.Icon(color="red", icon="info-sign")
-                                    ).add_to(m_sql)
-                                st_folium(m_sql, width=700, height=400, key=f"sql_map_{idx}")
-                            except:
-                                st.map(map_df_sql.rename(columns={"latitude": "lat", "longitude": "lon"})[["lat", "lon"]])
+                with h2:
+                    csv = df_disp.to_csv(index=False).encode("utf-8")
+                    st.download_button("📥 CSV", csv, f"data_{idx}.csv", key=f"dl_{idx}")
 
-                if "insight" in message and message["insight"]:
+                st.dataframe(df_disp, use_container_width=True)
+
+                # Auto-map if coords present
+                if "latitude" in df_raw.columns and "longitude" in df_raw.columns:
+                    coord_df = df_raw.dropna(subset=["latitude","longitude"])
+                    if not coord_df.empty:
+                        with st.expander("🗺️ Map", expanded=True):
+                            render_map(coord_df.to_dict("records"), key=f"sql_map_{idx}")
+
+                # SQL expander
+                if message.get("sql"):
+                    with st.expander("🔍 View SQL"):
+                        st.code(message["sql"], language="sql")
+
+                if message.get("insight"):
                     st.info(f"💡 **AI Insights:**\n{message['insight']}")
-                
-                # --- CHART RENDERING (RESTORED) ---
+
+                # Charts
                 split_meta = message.get("split_charts_metadata")
                 if split_meta:
-                    group_col = split_meta["group_col"]
-                    x_axis_col = split_meta["x_axis_col"]
-                    y_metrics = split_meta["y_metrics"]
-                    unique_cats = df_numeric_hist[group_col].unique()
-                    for i, cat_val in enumerate(unique_cats[:5]):
-                        subset = df_numeric_hist[df_numeric_hist[group_col] == cat_val].copy()
-                        plot_smart_chart(subset, x_axis_col, y_metrics, f"📊 {cat_val} Analysis", f"ch_{idx}_{i}")
-                elif message.get("chart_data") is not None:
+                    for i, cat in enumerate(df_num[split_meta["group_col"]].unique()[:5]):
+                        subset = df_num[df_num[split_meta["group_col"]] == cat].copy()
+                        plot_smart_chart(subset, split_meta["x_axis_col"], split_meta["y_metrics"], f"📊 {cat}", f"ch_{idx}_{i}")
+                elif message.get("chart_data"):
                     x_col, y_cols = message["chart_data"]
-                    y_cols_valid = [c for c in y_cols if c in df_numeric_hist.columns]
-                    if y_cols_valid:
-                        plot_smart_chart(df_numeric_hist, x_col, y_cols_valid, f"Trends: {', '.join(y_cols_valid)}", f"ch_{idx}")
-            
-            # Display FOLLOW-UP buttons
-            if "follow_ups" in message and message["follow_ups"] and idx == len(st.session_state.messages) - 1:
+                    valid_y = [c for c in y_cols if c in df_num.columns]
+                    if valid_y:
+                        plot_smart_chart(df_num, x_col, valid_y, f"Trends: {', '.join(valid_y)}", f"ch_{idx}")
+
+            # Follow-up buttons (last message only)
+            if message.get("follow_ups") and idx == len(st.session_state.messages) - 1:
                 st.write("---")
                 st.write("🔍 **Suggested Follow-ups:**")
-                num_f = len(message["follow_ups"])
-                if num_f > 0:
-                    f_cols = st.columns(num_f)
-                    for f_idx, f_text in enumerate(message["follow_ups"]):
-                        with f_cols[f_idx]:
-                            if st.button(f_text, key=f"f_{idx}_{f_idx}"):
-                                submit_question(f_text)
-                                st.rerun()
+                fcols = st.columns(len(message["follow_ups"]))
+                for fi, ft in enumerate(message["follow_ups"]):
+                    with fcols[fi]:
+                        if st.button(ft, key=f"f_{idx}_{fi}"):
+                            submit_question(ft)
+                            st.rerun()
 
-@st.cache_data(ttl=600)  # Cache results for 10 minutes
-def get_globe_data_cached(show_sales):
-    clean_url = DB_URL.split('?')[0] if DB_URL else ""
-    conn = psycopg2.connect(clean_url)
-    
-    # 1. Health Centres
-    if show_sales:
-        h_sql = """
-            SELECT hc.latitude::float, hc.longitude::float, hc.name, 'Health Centre' as type,
-                   SUM(CAST(ms.total_amount AS NUMERIC)) as sales,
-                   COALESCE(hc.address, hc.name, '') as address
-            FROM healthcentres hc
-            LEFT JOIN master_sale ms ON ms.customer_name ILIKE hc.name
-            WHERE hc.latitude IS NOT NULL
-            GROUP BY 1,2,3,4,6
-        """
-        c_sql = """
-            SELECT c.latitude::float, c.longitude::float, c.name, 'Customer' as type,
-                   SUM(CAST(ms.total_amount AS NUMERIC)) as sales,
-                   COALESCE(ib.name, '') as brick_name, '' as address
-            FROM customers c
-            LEFT JOIN master_sale ms ON ms.customer_name ILIKE c.name
-            LEFT JOIN customer_details cd ON cd.customer_id = c.id
-            LEFT JOIN ims_brick ib ON ib.id = cd.ims_brick_id
-            WHERE c.latitude IS NOT NULL
-            GROUP BY 1,2,3,4,6,7
-        """
-    else:
-        h_sql = "SELECT latitude::float, longitude::float, name, 'Health Centre' as type, 0 as sales, COALESCE(address, name, '') as address FROM healthcentres WHERE latitude IS NOT NULL"
-        c_sql = "SELECT c.latitude::float, c.longitude::float, c.name, 'Customer' as type, 0 as sales, COALESCE(ib.name, '') as brick_name, '' as address FROM customers c LEFT JOIN customer_details cd ON cd.customer_id = c.id LEFT JOIN ims_brick ib ON ib.id = cd.ims_brick_id WHERE c.latitude IS NOT NULL"
+    # ── Process new prompt ───────────────────────────────────────────────
+    if prompt:
+        st.session_state.prompt_trigger = None
+        msg_id = f"msg_{int(pd.Timestamp.now().timestamp()*1000)}"
 
-    h_df = pd.read_sql(h_sql, conn)
-    c_df = pd.read_sql(c_sql, conn)
-    
-    # Doctors
-    with conn.cursor() as cur:
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'doctors'")
-        cols = [c[0].lower() for c in cur.fetchall()]
-    link_col = next((c for c in ["customersid", "customerid"] if c in cols), None)
-    if link_col:
-        d_df = pd.read_sql(f'SELECT c.latitude::float, c.longitude::float, d.name, \'Doctor\' as type, 0 as sales, \'\' as address, \'\' as brick_name FROM doctors d JOIN customers c ON d."{link_col}" = c.id WHERE c.latitude IS NOT NULL LIMIT 80', conn)
-    else:
-        d_df = pd.DataFrame(columns=['latitude', 'longitude', 'name', 'type', 'sales', 'address', 'brick_name'])
-    
-    conn.close()
-    return h_df, c_df, d_df
+        # Add user message
+        st.session_state.messages.append({"role": "user", "content": prompt, "msg_id": msg_id + "_q"})
 
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+
+            # ── MAP INTENT ───────────────────────────────────────────────
+            if is_map_intent(prompt):
+                entities = extract_multiple_entities(prompt)
+                all_locs = []
+                for ent in entities:
+                    all_locs.extend(fetch_location_for_entity(ent))
+
+                if all_locs:
+                    reply = f"📍 Found **{len(all_locs)}** location(s) for: {', '.join(entities)}"
+                    st.markdown(reply)
+                    render_map(all_locs, key=f"new_map_{msg_id}")
+                    st.session_state.messages.append({
+                        "role": "assistant", "content": reply,
+                        "map_data": all_locs, "msg_id": msg_id,
+                    })
+                else:
+                    reply = f"❌ No coordinates found for: {', '.join(entities)}"
+                    st.markdown(reply)
+                    st.session_state.messages.append({"role": "assistant", "content": reply, "msg_id": msg_id})
+
+            # ── SQL / DATA INTENT ────────────────────────────────────────
+            else:
+                with st.spinner("🔍 Generating SQL..."):
+                    result = generate_and_run_sql(
+                        prompt,
+                        history=st.session_state.conv_history,
+                    )
+
+                is_conv = result.get("is_conversational", False)
+                is_web  = result.get("is_web", False)
+                
+                if result["retries"] > 1:
+                    st.caption(f"⚠️ Self-corrected after {result['retries']} attempt(s)")
+
+                if result["error"]:
+                    err_msg = f"❌ **Query failed:** {result['error']}"
+                    if result["sql"]:
+                        err_msg += f"\n\n```sql\n{result['sql']}\n```"
+                    st.markdown(err_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": err_msg, "msg_id": msg_id})
+
+                else:
+                    rows = result["results"]
+                    sql  = result["sql"]
+
+                    # Cache successful query
+                    save_to_query_cache(prompt, sql)
+
+                    df_raw = pd.DataFrame(rows) if rows else pd.DataFrame()
+                    df_num, df_disp = smart_format_dataframe(df_raw)
+
+                    # ── STREAMING SUMMARY ─────────────────────────────────
+                    # Double check if web intent exists even if flag is missing (robustness)
+                    web_keywords = ["google", "search", "latest", "news", "internet", "web"]
+                    force_web = any(k in prompt.lower() for k in web_keywords)
+                    
+                    avatar = "🌐" if (is_web or force_web) else None
+                    with st.chat_message("assistant", avatar=avatar):
+                        full_answer = st.write_stream(
+                            summarise_results_stream(prompt, rows[:50])   # cap rows for token safety
+                        )
+
+                    # Show table (Skip for web-search/conversational results to avoid redundancy)
+                    is_conv = result.get("is_conversational", False)
+                    if not df_disp.empty and not is_conv:
+                        h1, h2, _ = st.columns([1, 1, 5])
+                        with h1:
+                            if st.button("🗑️", key=f"del_new_{msg_id}"):
+                                delete_message(msg_id)
+                        with h2:
+                            csv = df_disp.to_csv(index=False).encode("utf-8")
+                            st.download_button("📥 CSV", csv, f"result_{msg_id}.csv", key=f"dl_new_{msg_id}")
+                        st.dataframe(df_disp, use_container_width=True)
+
+                    # SQL expander (Only for actual DB queries)
+                    if sql:
+                        with st.expander("🔍 View SQL"):
+                            st.code(sql, language="sql")
+
+                    # Auto-map
+                    if "latitude" in df_raw.columns and "longitude" in df_raw.columns:
+                        coord_df = df_raw.dropna(subset=["latitude","longitude"])
+                        if not coord_df.empty:
+                            with st.expander("🗺️ Map of Results", expanded=True):
+                                render_map(coord_df.to_dict("records"), key=f"new_sql_map_{msg_id}")
+
+                    # Smart chart
+                    chart_data = None
+                    if not df_num.empty and len(df_num.columns) >= 2:
+                        x_col = df_num.columns[0]
+                        blacklist = {"id","uuid","code","rank","row_number"}
+                        y_cols = [
+                            c for c in df_num.columns[1:]
+                            if pd.api.types.is_numeric_dtype(df_num[c])
+                            and c.lower() not in blacklist
+                        ]
+                        if y_cols:
+                            chart_data = [x_col, y_cols]
+                            plot_smart_chart(df_num, x_col, y_cols, f"📊 {prompt[:50]}", f"ch_new_{msg_id}")
+
+                    # Follow-ups
+                    with st.spinner("Generating follow-up suggestions..."):
+                        follow_ups = suggest_followups(prompt, rows[:20])
+
+                    if follow_ups:
+                        st.write("---")
+                        st.write("🔍 **Suggested Follow-ups:**")
+                        fcols = st.columns(len(follow_ups))
+                        for fi, ft in enumerate(follow_ups):
+                            with fcols[fi]:
+                                if st.button(ft, key=f"fu_new_{msg_id}_{fi}"):
+                                    submit_question(ft)
+                                    st.rerun()
+
+                    # Persist message
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": full_answer,
+                        "data": df_raw if not df_raw.empty else None,
+                        "sql": sql,
+                        "chart_data": chart_data,
+                        "follow_ups": follow_ups,
+                        "msg_id": msg_id,
+                        "is_web": is_web,
+                    })
+
+                    # Update conversation history for next turn
+                    st.session_state.conv_history.append({"role": "user",      "content": prompt})
+                    st.session_state.conv_history.append({"role": "assistant",  "content": full_answer})
+                    if len(st.session_state.conv_history) > 12:
+                        st.session_state.conv_history = st.session_state.conv_history[-12:]
+
+        # Auto-save session
+        new_title = save_session(st.session_state.current_session, st.session_state.messages)
+        if new_title != st.session_state.current_session:
+            st.session_state.current_session = new_title
+
+
+# ─────────────────────────────────────────────
+# TAB 2 — GLOBE
+# ─────────────────────────────────────────────
 with tab2:
     st.subheader("🌍 Field Intelligence Globe (Satellite)")
-    show_sales = st.checkbox("💰 Show Sales Overlay", value=False, help="Enable to see turnover values on map")
-    
+    show_sales = st.checkbox("💰 Show Sales Overlay", value=False)
+
     try:
         h_df, c_df, d_df = get_globe_data_cached(show_sales)
         map_data = pd.concat([h_df, c_df, d_df])
-        vlat, vlng = (map_data["latitude"].mean(), map_data["longitude"].mean()) if not map_data.empty else (24.86, 67.00)
+        vlat = map_data["latitude"].mean() if not map_data.empty else 24.86
+        vlng = map_data["longitude"].mean() if not map_data.empty else 67.00
 
         import folium
         from streamlit_folium import st_folium
-        m = folium.Map(location=[vlat, vlng], zoom_start=11, 
-                       tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", 
-                       attr="Esri")
-        
-        # Helper for markers
-        for df, color, label in [(h_df, 'red', 'HC'), (c_df, 'orange', 'Cust')]:
+
+        m = folium.Map(
+            location=[vlat, vlng], zoom_start=11,
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri",
+        )
+        for df, color, label in [(h_df,"red","HC"), (c_df,"orange","Cust")]:
             for _, row in df.iterrows():
-                addr = row.get('address') if row.get('address') else row.get('brick_name', '')
-                popup_text = f"<b>{row['name']}</b><br>Type: {label}<br>📍 {addr}"
-                if show_sales and row['sales'] > 0: popup_text += f"<br><b style='color:green'>Sales: PKR {row['sales']:,.0f}</b>"
-                folium.CircleMarker([row["latitude"], row["longitude"]], 
-                                    radius=7 if show_sales and row['sales'] > 20000 else 5, 
-                                    popup=folium.Popup(popup_text, max_width=250), 
-                                    color=color, fill=True).add_to(m)
+                addr = row.get("address") or row.get("brick_name", "")
+                popup = f"<b>{row['name']}</b><br>{label}<br>📍 {addr}"
+                if show_sales and row["sales"] > 0:
+                    popup += f"<br><b style='color:green'>PKR {row['sales']:,.0f}</b>"
+                folium.CircleMarker(
+                    [row["latitude"], row["longitude"]],
+                    radius=7 if show_sales and row["sales"] > 20000 else 5,
+                    popup=folium.Popup(popup, max_width=250),
+                    color=color, fill=True,
+                ).add_to(m)
 
         for _, row in d_df.iterrows():
-            folium.CircleMarker([row["latitude"], row["longitude"]], radius=4, popup=f"{row['name']} (Doc)", color='blue', fill=True).add_to(m)
-        
-        st_folium(m, width=900, height=500, key=f"globe_sat_{show_sales}")
-        st.info("🔴 HC | 🟠 Customers | 🔵 Doctors")
-            
+            folium.CircleMarker([row["latitude"], row["longitude"]], radius=4, popup=f"{row['name']} (Doc)", color="blue", fill=True).add_to(m)
+
+        st_folium(m, width=900, height=500, key=f"globe_{show_sales}")
+        st.info("🔴 Health Centres  |  🟠 Customers  |  🔵 Doctors")
+
     except Exception as e:
-        st.error(f"Intelligence Globe Error: {e}")
-
-def is_map_intent(text: str) -> bool:
-    """Detect if user is asking for a location/map visualization."""
-    map_keywords = [
-        "location", "map", "dikhao map", "map pr", "map par", "nakshe", 
-        "kahan hai", "kahan ha", "show on map", "locate", "address", 
-        "coordinates", "gps", "kahan hain", "location show"
-    ]
-    text_lower = text.lower()
-    return any(kw in text_lower for kw in map_keywords)
-
-def extract_entity_name(prompt: str) -> str:
-    """Extract doctor/clinic name from prompt using smart regex (no LLM dependency)."""
-    import re as _re
-    
-    # Strip common map/location trigger words to isolate the entity
-    noise_words = [
-        "ki location dikhao", "ka location dikhao", "ki location show kro",
-        "location dikhao", "location show kro", "location show karo",
-        "ko map par dikhao", "ko map pr dikhao", "map par dikhao", "map pr dikhao",
-        "map par show karo", "show on map", "locate karo", "kahan hai", "kahan ha",
-        "kahan hain", "location", "map", "dikhao", "dikha", "show", "locate",
-        "address", "coordinates", "gps"
-    ]
-    
-    cleaned = prompt.strip()
-    for noise in sorted(noise_words, key=len, reverse=True):  # longest first
-        cleaned = _re.sub(noise, "", cleaned, flags=_re.IGNORECASE).strip()
-    
-    # Remove leftover punctuation/connectors
-    cleaned = _re.sub(r"^(ki|ka|ke|mujhe|mujhay|is|iss)\s+", "", cleaned, flags=_re.IGNORECASE).strip()
-    cleaned = _re.sub(r"\s+(ki|ka|ke|ka|pr|par)$", "", cleaned, flags=_re.IGNORECASE).strip()
-    cleaned = cleaned.strip(".,?!'\"").strip()
-    
-    # If cleaned result is valid, use it
-    if cleaned and cleaned.lower() not in ["none", "", "dr", "doctor"]:
-        return cleaned
-    
-    # Fallback: Try LLM (but validate response)
-    try:
-        res = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[{"role": "user", "content": f"Extract ONLY the doctor or clinic name from this text. Return ONLY the name, no explanation: '{prompt}'"}],
-            timeout=8.0
-        )
-        llm_name = res.choices[0].message.content.strip().strip('"').strip("'")
-        if llm_name and llm_name.lower() not in ["none", "null", "", "n/a"]:
-            return llm_name
-    except:
-        pass
-    
-    # Last resort: extract ALL-CAPS or Title Case words
-    words = prompt.split()
-    names = [w for w in words if len(w) > 2 and (w[0].isupper() or w.isupper())]
-    names = [w for w in names if w.lower() not in ["show", "map", "the", "karo", "dikhao", "location"]]
-    return " ".join(names) if names else prompt
-
-GEO_CACHE_FILE = os.path.join(get_chats_dir(), "geo_cache.json")
-
-def load_geo_cache():
-    if os.path.exists(GEO_CACHE_FILE):
-        try:
-            with open(GEO_CACHE_FILE, "r") as f:
-                return json.load(f)
-        except: return {}
-    return {}
-
-def save_geo_cache(cache):
-    try:
-        with open(GEO_CACHE_FILE, "w") as f:
-            json.dump(cache, f)
-    except: pass
-
-def reverse_geocode(lat: float, lng: float) -> str:
-    """Persistent Geocoding: Checks JSON first, then calls API."""
-    key = f"{lat:.4f},{lng:.4f}"
-    cache = load_geo_cache()
-    
-    if key in cache:
-        return cache[key]
-    
-    # Not in cache, fetch once
-    try:
-        import urllib.request
-        import json as _json
-        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat:.4f}&lon={lng:.4f}&zoom=18"
-        req = urllib.request.Request(url, headers={"User-Agent": "PharmaPersistentCache/1.2"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            addr = _json.loads(resp.read().decode()).get("display_name", "Address not found")
-            cache[key] = addr
-            save_geo_cache(cache)
-            return addr
-    except:
-        return f"Lat: {lat:.4f}, Lng: {lng:.4f}"
-
-def extract_multiple_entities(prompt: str) -> list:
-    """Extract multiple location names using robust case-insensitive regex splitting."""
-    import re as _re
-    
-    # 1. First, remove common trailing fluff that shouldn't be part of any name
-    fluff = [" teeno ", " dono ", " sab ", " ke sath ", " k sath "]
-    clean_prompt = prompt
-    for f in fluff:
-        clean_prompt = _re.sub(f, " ", clean_prompt, flags=_re.IGNORECASE)
-
-    # 2. Split by common separators using regex (case-insensitive)
-    # Handles: 'OR', 'or', 'AND', 'and', 'AUR', 'aur', '+', '&', '/', ',', '،'
-    pattern = _re.compile(r'\s+(?:or|and|aur)\s+|\s*[+&/,،]\s*', _re.IGNORECASE)
-    parts = pattern.split(clean_prompt)
-    
-    names = []
-    for part in parts:
-        name = extract_entity_name(part.strip())
-        if name and name.lower() not in ["none", "", "null", "ab mujhe", "teeno"]:
-            names.append(name)
-            
-    return names if names else [extract_entity_name(prompt)]
-
-def fetch_location_for_entity(entity_name: str):
-    """Try multiple tables to find coordinates for the given name."""
-    clean_url = DB_URL.split('?')[0] if DB_URL else ""
-    conn = psycopg2.connect(clean_url)
-    result_list = []
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-
-            # Try 1: customers (simple — no address column assumed)
-            cur.execute("""
-                SELECT c.name, c.latitude::float, c.longitude::float,
-                       'Customer' as entity_type,
-                       COALESCE(ib.name, '') as brick_name
-                FROM customers c
-                LEFT JOIN customer_details cd ON cd.customer_id = c.id
-                LEFT JOIN ims_brick ib ON ib.id = cd.ims_brick_id
-                WHERE c.name ILIKE %s AND c.latitude IS NOT NULL
-                LIMIT 5
-            """, (f"%{entity_name}%",))
-            rows = cur.fetchall()
-            if rows:
-                result_list = [dict(r) for r in rows]
-
-            # Try 2: healthcentres
-            if not result_list:
-                cur.execute("""
-                    SELECT name, latitude::float, longitude::float,
-                           'Health Centre' as entity_type,
-                           '' as brick_name
-                    FROM healthcentres
-                    WHERE name ILIKE %s AND latitude IS NOT NULL
-                    LIMIT 5
-                """, (f"%{entity_name}%",))
-                rows = cur.fetchall()
-                if rows:
-                    result_list = [dict(r) for r in rows]
-
-            # Try 3: doctors via doctor_plan → healthcentres
-            if not result_list:
-                cur.execute("""
-                    SELECT d.name, hc.latitude::float, hc.longitude::float,
-                           'Doctor' as entity_type,
-                           hc.name as brick_name
-                    FROM doctors d
-                    JOIN doctor_plan dp ON dp."doctorId" = d.id
-                    JOIN healthcentres hc ON hc.id = dp."healthCentreId"
-                    WHERE d.name ILIKE %s AND hc.latitude IS NOT NULL
-                    LIMIT 5
-                """, (f"%{entity_name}%",))
-                rows = cur.fetchall()
-                if rows:
-                    result_list = [dict(r) for r in rows]
-
-    except Exception:
-        result_list = []
-    finally:
-        conn.close()
-
-    # Add real street address via free reverse geocoding
-    for row in result_list:
-        row["address"] = reverse_geocode(row["latitude"], row["longitude"])
-
-    return result_list
-
-if prompt:
-    st.session_state.prompt_trigger = None # Reset
-    current_time = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
-    with st.chat_message("user"):
-        st.markdown(prompt)
-        st.caption(f"🕒 {current_time}")
-    st.session_state.messages.append({"role": "user", "content": prompt, "timestamp": current_time, "msg_id": f"u_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,1000)}"})
-
-    # --- MAP INTENT DETECTION (Before SQL loop) ---
-    if is_map_intent(prompt):
-        PIN_COLORS = ["blue", "red", "green", "orange", "purple", "darkblue", "cadetblue"]
-        with st.spinner("🗺️ Locations dhundh raha hun..."):
-            entity_names = extract_multiple_entities(prompt)
-            all_results = []
-            for i, ename in enumerate(entity_names):
-                rows = fetch_location_for_entity(ename)
-                color = PIN_COLORS[i % len(PIN_COLORS)]
-                for row in rows:
-                    row["pin_color"] = color
-                    row["search_label"] = ename
-                all_results.extend(rows)
-
-        ai_msg_id = f"a_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,9999)}"
-        current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
-
-        if all_results:
-            labels = " | ".join(f"📍 {n}" for n in entity_names)
-            map_content = f"### {labels}\n{len(all_results)} location(s) found:"
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": map_content,
-                "map_data": all_results,
-                "timestamp": current_time_ai,
-                "msg_id": ai_msg_id
-            })
-        else:
-            searched = ", ".join(entity_names) if entity_names else prompt
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": f"⚠️ **'{searched}'** ke liye koi coordinates nahi mili.\n\n**Wajah:** Database mein latitude/longitude missing hai ya naam match nahi hua.",
-                "timestamp": current_time_ai,
-                "msg_id": ai_msg_id
-            })
-        # ✅ SAVE TO DISK + DB before rerun (map chats were NOT being saved before!)
-        new_id = save_session(st.session_state.current_session, st.session_state.messages)
-        if st.session_state.current_session.startswith("New_Session_"):
-            st.session_state.current_session = new_id
-        st.rerun()  # Rerun so history loop renders the saved map
-
-    with st.spinner("Retrieving Data..."):
-        sys_prompt = """You are 'Antigravity Pharma AI' — a premium, dual-purpose Executive Assistant.
-
-        ROLE 1 (PHARMA EXPERT):
-        - For data, sales, or business questions, use your Database knowledge and provided SQL examples.
-        - Always use professional terminology and accurate metrics.
-
-        ROLE 2 (GENERAL ASSISTANT):
-        - You are now AUTHORIZED to answer any general questions (History, Science, Programming, General Urdu Poetry, etc.).
-        - If the user asks something outside of pharma, respond politely and helpfully using your internal knowledge.
-
-        COMMUNICATION:
-        - Mix Roman Urdu and Professional English.
-        - No emojis or decorative symbols in the final output unless requested.
-        """
-        try:
-            # --- 1. QUICKEST CACHE CHECK (No File Reads) ---
-            cache = load_query_cache()
-            normalized_q = prompt.lower().strip()
-            
-            sql_query = ""
-            results = None
-            is_cached = False
-            is_conversational = False
-            conversational_reply = ""
-            
-            if normalized_q in cache:
-                sql_query = cache[normalized_q]
-                results = run_sql_query(sql_query)
-                if not (isinstance(results, dict) and "error" in results):
-                    is_cached = True
-
-            # --- 2. TAVILY CHECK (NEW) ---
-            tavily_api_key = os.getenv("TAVILY_API_KEY")
-            is_web_request = any(word in normalized_q for word in ["google", "search", "latest", "news", "internet", "web"])
-            
-            if tavily_api_key and is_web_request:
-                try:
-                    from tavily import TavilyClient
-                    tavily = TavilyClient(api_key=tavily_api_key)
-                    with st.spinner("Searching the Web..."):
-                        search_result = tavily.search(query=prompt, search_depth="advanced")
-                        if search_result.get('results'):
-                            conversational_reply = f"🌐 **Search Insight:**\n\n"
-                            for res in search_result['results'][:3]:
-                                conversational_reply += f"- [{res['title']}]({res['url']})\n"
-                            conversational_reply += f"\n\n**Summary:** {search_result['results'][0]['content'][:1000]}"
-                            is_conversational = True
-                        else:
-                            is_conversational = False
-                except Exception as e:
-                    # Silently fail web search and fallback to standard LLM flow if internet/DNS is down
-                    is_conversational = False
-                    is_web_request = False 
-                    st.warning("⚠️ Could not connect to Web Search (Network Error). Proceeding with internal knowledge.")
-
-            # --- 3. LLM GENERATION ---
-            if not is_cached and not is_conversational:
-                # Cache misses perform file reads
-                schema = get_schema()
-                rag_context = get_rag_context(prompt)
-                
-                chat_context = ""
-                if len(st.session_state.messages) > 1:
-                    history = st.session_state.messages[-5:-1] # Get up to 4 prev msgs (excluding current)
-                    chat_context = "PREVIOUS CONVERSATION CONTEXT:\n"
-                    for msg in history:
-                        role_name = "User" if msg["role"] == "user" else "Assistant"
-                        content_txt = str(msg.get("content", ""))
-                        chat_context += f"{role_name}: {content_txt[:500]}\n"
-                        if role_name == "Assistant" and msg.get("sql"):
-                            chat_context += f"Executed SQL: {msg['sql']}\n"
-                
-                current_full_date = pd.Timestamp.now().strftime("%A, %b %d, %Y")
-                max_retries = 5
-                current_attempt = 0
-                last_error = ""
-                exploration_feedback = ""
-                is_conversational = False
-                conversational_reply = ""
-                
-                while current_attempt < max_retries:
-                    current_attempt += 1
-                    error_feedback = f"\n\nLAST ERROR WAS: {last_error}" if last_error else ""
-                    gen_prompt = (
-                        f"CURRENT DATE/TIME: {current_full_date}\n"
-                        f"{chat_context}\n"
-                        f"KNOWLEDGE BASE & BUSINESS LOGIC:\n{rag_context}\n\n"
-                        f"DATABASE SCHEMA:\n{schema}\n\n"
-                        f"QUERY VALIDATION RULES (CRITICAL BEFORE EXECUTING):\n"
-                        f"1. Verify table exists in schema (e.g. 'orders' is EMPTY, 'master_sale' is NOT).\n"
-                        f"2. Verify all column names exist exactly as written.\n"
-                        f"3. If filter value may differ, ALWAYS use ILIKE '%value%'.\n"
-                        f"4. If your previous query returned 0 rows, you MUST generate a simple query to inspect available values: SELECT DISTINCT <column_name> FROM <table> LIMIT 10;\n"
-                        f"5. Never return constant values like 0 for 'brick_name'. Always select the actual column.\n"
-                        f"6. PostgreSQL Case Sensitivity (CRITICAL): If a column name has capital letters (ALWAYS true for `doctor_plan` table: \"doctorId\", \"managerId\", \"healthCentreId\", \"eventType\", \"inHealthCentre\"), you MUST enclose it in DOUBLE QUOTES. e.g. SELECT \"managerId\" FROM doctor_plan.\n"
-                        f"7. Subqueries: Never use '=' with a subquery like `WHERE id = (SELECT...)`. ALWAYS use `IN (SELECT...)` or a `JOIN` to avoid 'more than one row returned' errors.\n"
-                        f"8. Follow-Up Filter Retention: If the user asks a continuation question (e.g., 'what about completed visits?', 'now show me for this year'), you MUST RE-APPLY the exact same WHERE filters (like manager name, territory, doctor) from the previous 'Executed SQL', unless the user explicitly tells you to look at someone else.\n"
-                        f"9. WHAT-IF ANALYSIS (SIMULATION): If the user asks a 'What-If' question (e.g., 'If I double visits, how will sales change?'), do NOT say you can't predict. Instead, generate a ```sql``` query to fetch the last 12 months of 'master_sale' (revenue) and 'doctor_plan' (visits) for that context. Then, in the summary, calculate the simple growth ratio and provide a hypothetical business estimate.\n"
-                        f"10. TABLE MAPPING: The table `area_managers` ONLY contains `area_id` and `manager_id`. For geography/manager sales, use `master_sale` directly (`area_manager_name`).\n"
-                        f"11. DOCTOR SALES: In `master_sale`, doctors are recorded as `customer_name`. ALWAYS filter by `customer_type = 'Doctors'` to get physician-specific sales. The column `doctor_name` does NOT exist in `master_sale`. Also, the column for product categories is `product_group_name`, NOT `product_group`.\n"
-                        f"12. Database 'master_sale' uses `invoice_date`. The column `sale_date` does NOT exist.\n"
-                        f"13. WHAT-IF ROUTING: For any simulation, growth projection, or 'What-If' question, you MUST use OPTION B (Final Data/SQL) to fetch history. NEVER use OPTION C (Chat) for business projections.\n"
-                        f"USER QUESTION: {prompt}"
-                        f"{error_feedback}"
-                        f"{exploration_feedback}\n\n"
-                        "ROUTING RULES (Follow Carefully - AUTONOMOUS AGENT MODE):\n"
-                        "OPTION A (Explore Data): If you are unsure of exact spellings or if your previous query returned 0 rows, write a diagnostic query inside ```explore\n ... \n``` (e.g. SELECT DISTINCT name). I will run it and feed the results back to you secretly so you can fix your final query.\n"
-                        "OPTION B (Final Data): If you are confident your query will bring the correct data for the user, return the PostgreSQL SELECT query inside ```sql\n ... \n```.\n"
-                        "OPTION C (Chat): ONLY for greetings ('hi', 'how are you'), simple text questions about your name, or general pharma definitions. NEVER use this for data analysis or business projections.\n"
-                    )
-                    
-                    # ATTEMPT GENERATION
-                    try:
-                        response = client.chat.completions.create(
-                            model=LLM_MODEL,
-                            messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": gen_prompt}],
-                            timeout=30.0
-                        )
-                    except Exception as api_err:
-                        last_error = str(api_err)
-                        continue
-                    
-                    content = response.choices[0].message.content
-                    chat_match = re.search(r"```chat\n(.*?)\n```", content, re.DOTALL)
-                    sql_match = re.search(r"```sql\n(.*?)\n```", content, re.DOTALL)
-                    explore_match = re.search(r"```explore\n(.*?)\n```", content, re.DOTALL)
-                    
-                    if chat_match:
-                        is_conversational = True
-                        conversational_reply = chat_match.group(1).strip()
-                        results = []
-                        sql_query = ""
-                        break
-
-                    if explore_match:
-                        explore_query = explore_match.group(1).strip()
-                        exp_results = run_sql_query(explore_query)
-                        if isinstance(exp_results, dict) and "error" in exp_results:
-                            last_error = exp_results["error"]
-                        else:
-                            exploration_feedback += f"\n\n[EXPLORATION RESULTS for '{explore_query}']:\n{exp_results}\nUse these exact values in your next ```sql``` query."
-                            last_error = ""
-                        continue
-
-                    sql_query = sql_match.group(1).strip() if sql_match else content.strip()
-
-                    results = run_sql_query(sql_query)
-                    
-                    if isinstance(results, dict) and "error" in results:
-                        last_error = results["error"]
-                        continue
-                        
-                    if not results and current_attempt < max_retries:
-                        last_error = f"Your final ```sql``` query returned exactly 0 rows. Please use ```explore``` option next to SELECT DISTINCT values from the database and find out what the actual spellings or values are before returning another ```sql``` query."
-                        continue
-                        
-                    else:
-                        if results: # Only save to cache if it actually returned data
-                            save_to_query_cache(prompt, sql_query)
-                        break
-
-            # Final Output Handling
-            if is_conversational:
-                # Bypass DB logic, output chat directly
-                final_answer = conversational_reply
-                df = pd.DataFrame()
-                current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
-                
-                # PERSISTENCE FIX: Append to messages and save
-                ai_msg_id = f"a_conv_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,1000)}"
-                st.session_state.messages.append({
-                    "role": "assistant", 
-                    "content": final_answer, 
-                    "timestamp": current_time_ai, 
-                    "msg_id": ai_msg_id
-                })
-                
-                # Save to Local + DB
-                new_id = save_session(st.session_state.current_session, st.session_state.messages)
-                if st.session_state.current_session.startswith("New_Session_"):
-                    st.session_state.current_session = new_id
-                
-                with st.chat_message("assistant"):
-                    st.markdown(final_answer)
-                    st.caption(f"🕒 {current_time_ai}")
-                chart_data = None
-            elif isinstance(results, dict) and "error" in results:
-                st.error(f"Failed after {max_retries} attempts. Final Error: {results['error']}")
-                final_answer = f"Error: {results['error']}"
-                df = pd.DataFrame()
-                chart_data = None
-            else:
-                if is_cached:
-                    st.toast("⚡ Result served from Cache (SQL generation skipped)", icon="🔥")
-                
-                df = pd.DataFrame(results)
-                
-                if df.empty:
-                    # PROACTIVE DISCOVERY: Try to find similar bricks
-                    discovery_msg = ""
-                    potential_brick = re.search(r"ILIKE '%(.*?)%'", sql_query, re.I)
-                    if potential_brick:
-                        search_term = potential_brick.group(1)
-                        discovery_results = run_sql_query(f"SELECT name FROM ims_brick WHERE name ILIKE '%{search_term}%' LIMIT 3")
-                        if discovery_results:
-                            names_list = "\n".join([f"- {r['name']}" for r in discovery_results])
-                            discovery_msg = f"Available similar options in database:\n{names_list}"
-
-                    discovery_context = f"I found these similar options in the database:\n{discovery_msg}\nIncorporate these options into your advice." if discovery_msg else "I could not find any similar alternative names in the database."
-
-                    # Let the LLM generate a friendly "no data" message
-                    empty_prompt = (
-                        f"User asked: {prompt}\n\n"
-                        f"Your SQL query returned exactly 0 rows.\n"
-                        f"To assist the user, explain politely that the specific filter they used might not match exactly, or the data might not be available for their specific combination.\n"
-                        f"IMPORTANT: {discovery_context}\n"
-                        f"Do NOT make up or hallucinate placeholder options. If no options are provided, just tell the user to try a different query."
-                    )
-                    empty_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": empty_prompt}], timeout=30.0)
-                    final_answer = empty_res.choices[0].message.content
-                else:
-                    # IF CACHED: Skip AI summary for 1-second performance
-                    if is_cached:
-                        final_answer = f"⚡ **(Cached Response)**\n\nHere are the latest results from the database for your request. The SQL logic was retrieved from history for high-speed performance."
-                    else:
-                        sum_prompt = (
-                            f"{chat_context}\n"
-                            f"User asked: {prompt}\nDB Result: {results}\n\n"
-                             "TASK (Strategic Advisor Mode):\n"
-                             "1. If data shows numeric results, provide a structured Business Summary.\n"
-                             "2. WHAT-IF / SIMULATIONS: ONLY provide a 'Current' vs 'Predicted' comparison IF the user specifically asked for a 'what-if', 'prediction', 'simulation', or 'if I change' scenario. For standard data requests, stick to factual business summaries of existing results ONLY (no unsolicited predictions).\n"
-                             "3. FORMATTING: Use Markdown Headers (###), Bold text, and Bullet points. Strictly avoid long paragraphs.\n"
-                             "4. LARGE NUMBERS: Always use commas (e.g. PKR 3,500,000) and max 2 decimals.\n"
-                             "5. LANGUAGE: Use Pakistani Roman Urdu for sentence structure, but STRICTLY use English for ALL business terminology (e.g., write 'Business Summary' and NOT 'Biznes Sammary', write 'Sales' and NOT 'Bikri').\n"
-                             "6. INSIGHT: Always conclude with a 1-sentence strategic recommendation.\n"
-                             "7. NO LIST REPETITION: If the database result is a long list of names or categories (e.g. more than 10 items) that is already visible in the table, do NOT repeat all the names in your summary. Instead, just provide a count and a high-level overview.\n"
-                             "8. STRICT RULE: NEVER refer to the user as 'Mamo'. Use respectful professional language."
-                        )
-                        summary_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": sum_prompt}], timeout=30.0)
-                        final_answer = summary_res.choices[0].message.content
-                
-                current_time_ai = pd.Timestamp.now().strftime("%I:%M %p - %b %d, %Y")
-                with st.chat_message("assistant"):
-                    st.markdown(final_answer)
-                    st.caption(f"🕒 {current_time_ai}")
-                    with st.expander("🛠️ Show SQL Logic (Debug)"):
-                        st.code(sql_query, language="sql")
-                    chart_data = None
-                    if not df.empty:
-                        # Use Smart Formatting
-                        df_numeric, df_display = smart_format_dataframe(df)
-                        
-                        # Table use formatted
-                        st.dataframe(df_display, use_container_width=True)
-                        
-                        # --- FEATURE 1: AI INSIGHT CARDS ---
-                        insight_msg = ""
-                        try:
-                            insight_prompt = (
-                                f"Analyze this data table and provide 2-3 VERY SHORT business insights or anomalies (max 10 words each). "
-                                f"IMPORTANT: Format large numbers with commas/separators. Use Roman Urdu but STRICTLY use English for business terms (e.g., 'Sales'). NEVER use 'Mamo'. "
-                                f"Data: {df.head(10).to_dict(orient='records')}"
-                            )
-                            insight_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "system", "content": sys_prompt}, {"role": "user", "content": insight_prompt}], timeout=15.0)
-                            insight_msg = insight_res.choices[0].message.content
-                            st.info(f"💡 **AI Insights:**\n{insight_msg}")
-                        except:
-                            pass
-                        
-                        # --- Enhanced Multi-Column Auto-Charting (with Multi-Plot support) ---
-                        chart_data = None
-                        split_charts_metadata = None
-                        if len(df_numeric) > 1:
-                            cols = df_numeric.columns.tolist()
-                            first_col = cols[0]
-                            num_cols = df_numeric.select_dtypes(include=['number']).columns.tolist()
-                            unique_cats = df_numeric[first_col].unique()
-                            
-                            # Decide if we need "Single Plot" or "Split Plots" (e.g. 5 products, each with 12 months)
-                            if len(unique_cats) < len(df_numeric) and len(cols) >= 2:
-                                # 🔥 MULTI-PLOT MODE (Split by Product/Category)
-                                group_col = first_col
-                                x_axis_col = cols[1]
-                                # Blacklist for Y-axis metrics (ID, coordinates, status etc)
-                                forbidden_exact = ['id', 'status', 'eventType', 'event_type', 'description', 'shift', 'approval', 'inHealthCentre', 'in_health_centre', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
-                                
-                                # Identify Metrics for Y-axis (excluding grouping, X columns, and forbidden columns)
-                                y_metrics = []
-                                for c in num_cols:
-                                    c_lower = str(c).lower()
-                                    if c in [group_col, x_axis_col] or c_lower in forbidden_exact:
-                                        continue
-                                    if c_lower.endswith('_id') or (c_lower.endswith('id') and len(c_lower) > 4):
-                                        continue
-                                    # Skip if column is all zeros
-                                    if df_numeric[c].sum() == 0:
-                                        continue
-                                    y_metrics.append(c)
-                                
-                                if y_metrics:
-                                    # Save metadata for next rerun
-                                    split_charts_metadata = {"group_col": group_col, "x_axis_col": x_axis_col, "y_metrics": y_metrics}
-                                    # Active rendering
-                                    # Use up to 5 unique categories to avoid clutter
-                                    for i, cat_val in enumerate(unique_cats[:5]):
-                                        subset = df_numeric[df_numeric[group_col] == cat_val].copy()
-                                        if not subset.empty: # Ensure subset is not empty before plotting
-                                            plot_smart_chart(
-                                                subset, 
-                                                x_axis_col, 
-                                                y_metrics, 
-                                                f"📊 {cat_val}: {', '.join(y_metrics)} Analysis", 
-                                                f"split_active_{i}"
-                                            )
-                            else:
-                                # ❄️ NORMAL PLOT MODE (One bar per Category)
-                                x_col = first_col
-                                forbidden_exact = ['id', 'status', 'eventType', 'event_type', 'description', 'shift', 'approval', 'inHealthCentre', 'in_health_centre', 'latitude', 'longitude', 'lat', 'lng', 'radius', 'distance', 'mobile', 'phone', 'cnic', 'nic', 'year', 'month', 'invoice_id']
-                                y_cols = []
-                                for c in num_cols:
-                                    c_lower = str(c).lower()
-                                    if c == x_col or c_lower in forbidden_exact:
-                                        continue
-                                    if c_lower.endswith('_id') or (c_lower.endswith('id') and len(c_lower) > 4):
-                                        continue
-                                    # Skip if column is all zeros
-                                    if df_numeric[c].sum() == 0:
-                                        continue
-                                    y_cols.append(c)
-                                
-                                if y_cols:
-                                    plot_smart_chart(
-                                        df_numeric, 
-                                        x_col, 
-                                        y_cols, 
-                                        f"Analysis: {', '.join(y_cols)} per {x_col}", 
-                                        f"chart_new_active"
-                                    )
-                                    chart_data = (x_col, y_cols)
-                        
-                        # --- GENERATE FOLLOW-UPS ---
-                        follow_ups = []
-                        try:
-                            f_prompt = f"Based on this answer: '{final_answer}', suggest 2 very short (max 5 words) follow-up questions about the data."
-                            f_res = client.chat.completions.create(model=LLM_MODEL, messages=[{"role": "user", "content": f_prompt}], timeout=15.0)
-                            raw_f = f_res.choices[0].message.content
-                            follow_ups = [q.strip('1234. -').strip() for q in raw_f.split('\n') if '?' in q][:2]
-                        except:
-                            follow_ups = []
-
-                        st.session_state.messages.append({"role": "assistant", "content": final_answer, "sql": sql_query if not is_conversational else "", "data": df_numeric if not df.empty else df, "insight": insight_msg if 'insight_msg' in locals() else "", "chart_data": chart_data, "split_charts_metadata": split_charts_metadata, "follow_ups": follow_ups, "timestamp": current_time_ai, "msg_id": f"a_{int(pd.Timestamp.now().timestamp())}_{random.randint(0,1000)}"})
-                # Auto-save
-                new_id = save_session(st.session_state.current_session, st.session_state.messages)
-                if st.session_state.current_session.startswith("New_Session_"):
-                    st.session_state.current_session = new_id
-                st.rerun()
-        except Exception as e:
-            st.error(f"❌ An error occurred: {str(e)}")
+        st.error(f"Globe error: {e}")
