@@ -57,5 +57,8 @@
     "search latest pharma trends in pakistan web search": "",
     "worldwide latest pharma trends web search": "",
     "search latest pharma trends in pakistan karachi web search": "",
-    "lask week pharma sales of pakistan web search": ""
+    "lask week pharma sales of pakistan web search": "",
+    "show me top 10 doctor": "SELECT \n  \"customer_name\" AS \"Doctor Name\", \n  SUM(\"total_amount\") AS \"Total Sales\"\nFROM \"master_sale\" \nWHERE \"customer_type\" = 'Doctors'\nGROUP BY 1\nORDER BY 2 DESC\nLIMIT 10;",
+    "kashif medicos sale": "SELECT \n  \"product_name\", \n  SUM(\"product_quantity\") AS \"Total Quantity\", \n  SUM(\"total_amount\") AS \"Total Sales\"\nFROM \n  \"master_sale\"\nWHERE \n  \"customer_name\" ILIKE '%Kashif Medicos%'\nGROUP BY \n  \"product_name\"\nORDER BY \n  \"Total Sales\" DESC\nLIMIT 10;",
+    "today pharma update  web search": ""
 }

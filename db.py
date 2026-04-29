@@ -25,8 +25,13 @@ _pool: pool.SimpleConnectionPool | None = None
 
 def _get_pool() -> pool.SimpleConnectionPool:
     global _pool
+    db_url = os.getenv("DATABASE_URL", "")
+    # Keep full URL — psycopg2 supports sslmode in the connection string
+    # Only strip unsupported params like 'schema' (not 'sslmode')
+    clean_url = re.sub(r"[?&]schema=[^&]*", "", db_url) if db_url else ""
+    
     if _pool is None or _pool.closed:
-        _pool = pool.SimpleConnectionPool(1, 10, _CLEAN_URL)
+        _pool = pool.SimpleConnectionPool(1, 10, clean_url)
     return _pool
 
 
