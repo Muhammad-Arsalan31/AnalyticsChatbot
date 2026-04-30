@@ -322,10 +322,22 @@ def get_globe_data_cached(show_sales: bool):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def is_map_intent(text: str) -> bool:
+    """Returns True ONLY for simple location lookups (clinic/customer names).
+    Visit-based queries (manager ke health centers) go to SQL flow instead,
+    because the SQL returns lat/lng columns which auto-render the map.
+    """
     keywords = ["location","map","dikhao map","map pr","map par","nakshe","kahan hai",
                 "kahan ha","show on map","locate","address","coordinates","gps",
                 "kahan hain","location show"]
-    return any(k in text.lower() for k in keywords)
+    if not any(k in text.lower() for k in keywords):
+        return False
+    # If query involves visits or person names → route to SQL (has lat/lng)
+    sql_route_signals = ["visit","visits","gaye","jane","manager","doctor","dr.",
+                         "ke health center","ke healthcentre","ki visits","ka visit",
+                         "ne kahan","kis health","kahan gaya"]
+    if any(s in text.lower() for s in sql_route_signals):
+        return False   # Let SQL + auto-map handle it
+    return True
 
 
 def extract_entity_name(prompt: str) -> str:
@@ -790,11 +802,25 @@ with tab1:
                     chart_data = None
                     if not df_num.empty and len(df_num.columns) >= 2:
                         x_col = df_num.columns[0]
-                        blacklist = {"id","uuid","code","rank","row_number"}
+                        # Expanded blacklist: security-sensitive + metadata + meaningless ID cols
+                        blacklist = {
+                            "id", "uuid", "code", "rank", "row_number",
+                            # 🔴 Security — never chart these
+                            "password", "refresh_token", "token", "secret", "hash",
+                            # Personal info columns (usually NULL / non-metric)
+                            "email", "mobile", "phone", "image", "avatar", "photo",
+                            # Metadata / FK columns
+                            "deleted_at", "created_at", "updated_at",
+                            "permissionsid", "company_id",
+                            "cmp_manager_id", "cmp_doctor_id", "cmp_team_id",
+                            "cmp_customer_id", "cmp_hc_id", "cmp_territory_id",
+                        }
                         y_cols = [
                             c for c in df_num.columns[1:]
                             if pd.api.types.is_numeric_dtype(df_num[c])
                             and c.lower() not in blacklist
+                            and df_num[c].notna().any()          # skip all-NaN cols
+                            and df_num[c].abs().sum() > 0        # skip all-zero cols
                         ]
                         if y_cols:
                             chart_data = [x_col, y_cols]
