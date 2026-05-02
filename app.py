@@ -589,10 +589,23 @@ with st.sidebar:
 
     st.divider()
     with st.expander("📊 Data Health"):
-        st.success("IMS Market Sales: live")
-        st.success("Internal Sales: live")
-        st.success("Doctors: live")
-        st.warning("⚠️ Orders: empty table")
+        try:
+            # Fetch real-time counts for transparency
+            doc_count = run_sql_query('SELECT COUNT(*) as total FROM "doctors"')[0]['total']
+            market_count = run_sql_query('SELECT COUNT(*) as total FROM "ims_sale"')[0]['total']
+            internal_count = run_sql_query('SELECT COUNT(*) as total FROM "invoice_details"')[0]['total']
+            hc_count = run_sql_query('SELECT COUNT(*) as total FROM "healthcentres"')[0]['total']
+            
+            st.info(f"👨‍⚕️ Doctors: {doc_count:,} records")
+            st.info(f"🌍 Market Sales: {market_count:,} records")
+            st.info(f"💊 Internal Sales: {internal_count:,} records")
+            st.info(f"🏥 Health Centres: {hc_count:,} records")
+            
+            # Show warning for empty tables if any
+            if internal_count == 0:
+                st.warning("⚠️ No sales data found!")
+        except Exception as e:
+            st.error("Connection: Offline")
 
     if st.button("Clear History"):
         st.session_state.messages = []
