@@ -611,6 +611,18 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.conv_history = []
 
+    st.divider()
+    st.subheader("🕸️ Neural Network")
+    if st.button("🔄 Refresh Nodes Data"):
+        with st.spinner("Generating Live Nodes..."):
+            os.system(f'python "{os.path.join(os.getcwd(), "generate_nodes_data.py")}"')
+            st.toast("Nodes Data Updated!")
+    
+    portal_path = os.path.join(os.getcwd(), "nodes_portal.html")
+    st.info(f"Open Portal in New Tab:\n\n`{portal_path}`")
+    if st.button("🚀 How to open?"):
+        st.write("Copy The File Path And Paste It In Your Web Browser Address Bar.")
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # TABS

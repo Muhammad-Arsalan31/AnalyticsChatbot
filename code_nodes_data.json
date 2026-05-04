@@ -1,0 +1,295 @@
+{
+    "nodes": [
+        {
+            "id": "env",
+            "label": ".env",
+            "group": "config",
+            "color": "#f59e0b",
+            "size": 20
+        },
+        {
+            "id": "agent",
+            "label": "agent.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "agent_core",
+            "label": "agent_core.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "api",
+            "label": "api.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "app",
+            "label": "app.py",
+            "group": "core",
+            "color": "#ef4444",
+            "size": 30
+        },
+        {
+            "id": "check_coordinates",
+            "label": "check_coordinates.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "check_ms",
+            "label": "check_ms.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "check_tables",
+            "label": "check_tables.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "check_targets_schema",
+            "label": "check_targets_schema.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "db",
+            "label": "db.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "diagnose_db",
+            "label": "diagnose_db.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "find_place",
+            "label": "find_place.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "find_zones",
+            "label": "find_zones.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "generate_code_nodes",
+            "label": "generate_code_nodes.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "generate_nodes_data",
+            "label": "generate_nodes_data.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "schema_check",
+            "label": "schema_check.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        },
+        {
+            "id": "warmup_geo_cache",
+            "label": "warmup_geo_cache.py",
+            "group": "logic",
+            "color": "#3b82f6",
+            "size": 20
+        }
+    ],
+    "edges": [
+        {
+            "from": "agent",
+            "to": "agent_core",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "agent_core",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "agent_core",
+            "to": "db",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "api",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "app",
+            "to": "db",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "app",
+            "to": "agent_core",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "app",
+            "to": "db",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "app",
+            "to": "db",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "check_coordinates",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "check_ms",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "check_tables",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "check_targets_schema",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "db",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "diagnose_db",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "find_place",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "find_zones",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "generate_code_nodes",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "generate_code_nodes",
+            "to": "db",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "generate_code_nodes",
+            "to": "agent_core",
+            "label": "imports",
+            "arrows": "to",
+            "color": {
+                "inherit": "from"
+            }
+        },
+        {
+            "from": "generate_nodes_data",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "schema_check",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        },
+        {
+            "from": "warmup_geo_cache",
+            "to": "env",
+            "label": "reads",
+            "color": "#f59e0b",
+            "dashes": true
+        }
+    ]
+}
