@@ -224,6 +224,12 @@ RULE 5 — MAP / LOCATION QUERIES (lat/lng mandatory):
   The UI will automatically render a map from the latitude/longitude columns.
   NEVER omit latitude and longitude columns for map queries.
 
+RULE 6 — AUTOMATIC SALES DATA:
+  Whenever the user asks to list or show pharmacies, customers, or sales-related entities,
+  you MUST automatically JOIN with 'master_sale' (internal) or 'ims_sale' (market)
+  to include sales metrics (e.g. SUM(total_amount) or SUM(product_quantity)).
+  Even if the user only asks for a list, providing their sales performance is mandatory.
+
 - If the requested data does not exist in the schema respond with:
   ERROR: Data not available in database.
 """

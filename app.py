@@ -194,7 +194,9 @@ def smart_format_dataframe(df: pd.DataFrame):
     for col in df_numeric.columns:
         if df_numeric[col].dtype == object:
             try:
-                df_numeric[col] = pd.to_numeric(df_numeric[col], errors="ignore")
+                converted = pd.to_numeric(df_numeric[col], errors="coerce")
+                if converted.notna().any():
+                    df_numeric[col] = converted
             except Exception:
                 pass
 
@@ -237,12 +239,12 @@ def plot_smart_chart(df: pd.DataFrame, x_col: str, y_cols: list, title: str, key
                               legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
             fig.update_yaxes(title_text=p, secondary_y=False)
             fig.update_yaxes(title_text=s, secondary_y=True)
-            st.plotly_chart(fig, use_container_width=True, key=key)
+            st.plotly_chart(fig, use_container_width=True, key=key)  # noqa: deprecated but stable
             return
 
     fig = px.bar(df, x=x_col, y=y_cols, barmode="group", template="plotly_dark", title=title)
     fig.update_layout(xaxis=xaxis)
-    st.plotly_chart(fig, use_container_width=True, key=key)
+    st.plotly_chart(fig, use_container_width=True, key=key)  # noqa: deprecated but stable
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -383,18 +385,35 @@ def fetch_location_for_entity(entity_name: str) -> list:
     try:
         from psycopg2.extras import RealDictCursor
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            for table, type_label in [
-                ("customers",    "Customer"),
-                ("healthcentres","Health Centre"),
+            for table, type_label, pin_color in [
+                ("customers",    "Customer",      "red"),
+                ("healthcentres","Health Centre", "blue"),
             ]:
+                # Fetch location + join sales from master_sale
                 cur.execute(
-                    f'SELECT name, latitude::float, longitude::float, %s as entity_type FROM "{table}" WHERE name ILIKE %s AND latitude IS NOT NULL LIMIT 3',
+                    f'''
+                    SELECT
+                        t.name,
+                        t.latitude::float,
+                        t.longitude::float,
+                        %s AS entity_type,
+                        COALESCE(SUM(ms.total_amount::numeric), 0) AS total_sales
+                    FROM "{table}" t
+                    LEFT JOIN master_sale ms ON ms.customer_name ILIKE t.name
+                    WHERE t.name ILIKE %s AND t.latitude IS NOT NULL
+                    GROUP BY t.name, t.latitude, t.longitude
+                    LIMIT 5
+                    ''',
                     (type_label, f"%{entity_name}%"),
                 )
                 rows = cur.fetchall()
                 for row in rows:
                     addr = reverse_geocode(row["latitude"], row["longitude"])
-                    results.append({**dict(row), "address": addr, "pin_color": "red" if type_label == "Customer" else "blue"})
+                    results.append({
+                        **dict(row),
+                        "address":   addr,
+                        "pin_color": pin_color,
+                    })
     except Exception as e:
         print(f"[Location Error] {e}")
     finally:
@@ -437,18 +456,45 @@ def render_map(map_rows: list, key: str):
             tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
             attr="Esri",
         )
+
+        # Colour map for entity types
+        color_map = {"red": "#ef4444", "blue": "#3b82f6", "green": "#22c55e", "orange": "#f97316"}
+
         for _, row in map_df.iterrows():
-            folium.Marker(
+            sales_val  = row.get("total_sales", row.get("sales", 0)) or 0
+            sales_fmt  = f"PKR {float(sales_val):,.0f}" if sales_val else "No Sales Data"
+            sales_color = "#22c55e" if sales_val else "#94a3b8"
+
+            popup_html = (
+                f"<div style='font-family:sans-serif;min-width:180px'>"
+                f"<b style='font-size:14px'>{row['name']}</b><br>"
+                f"<span style='color:#64748b'>{row.get('entity_type', '')}</span><br><hr style='margin:4px 0'>"
+                f"<b style='color:{sales_color}'>💰 Sales: {sales_fmt}</b><br>"
+                f"<small>📍 {row.get('address', '')}</small>"
+                f"</div>"
+            )
+
+            # Scale circle radius by sales (5–20px range)
+            max_sales = map_df.get("total_sales", map_df.get("sales", pd.Series([1]))).max() or 1
+            radius = 8 + int(12 * (float(sales_val) / float(max_sales))) if sales_val else 8
+
+            pin_color = row.get("pin_color", "blue")
+            fill_hex   = color_map.get(pin_color, "#3b82f6")
+
+            folium.CircleMarker(
                 location=[row["latitude"], row["longitude"]],
-                popup=folium.Popup(
-                    f"<b>{row['name']}</b><br>Type: {row.get('entity_type','')}<br>📍 {row.get('address','')}",
-                    max_width=300,
-                ),
-                tooltip=row["name"],
-                icon=folium.Icon(color=row.get("pin_color", "blue"), icon="info-sign"),
+                radius=radius,
+                color=fill_hex,
+                fill=True,
+                fill_color=fill_hex,
+                fill_opacity=0.75,
+                popup=folium.Popup(popup_html, max_width=280),
+                tooltip=f"{row['name']}  |  {sales_fmt}",
             ).add_to(m)
-        st_folium(m, width=700, height=400, key=key)
-    except Exception:
+
+        st_folium(m, width=700, height=420, key=key)
+    except Exception as exc:
+        st.warning(f"Map render error: {exc}")
         st.map(map_df.rename(columns={"latitude": "lat", "longitude": "lon"})[["lat", "lon"]])
 
 
@@ -548,8 +594,10 @@ st.divider()
 with st.sidebar:
     st.header(f"🧑‍💼 {st.session_state.username}")
     if st.button("🚪 Logout"):
-        for k in ["username","messages","current_session","conv_history"]:
-            st.session_state[k] = None if k == "username" else ([] if "messages" in k or "history" in k else st.session_state[k])
+        st.session_state.username = None
+        st.session_state.messages = []
+        st.session_state.conv_history = []
+        st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
         st.rerun()
 
     st.divider()
@@ -621,7 +669,7 @@ with st.sidebar:
     portal_path = os.path.join(os.getcwd(), "nodes_portal.html")
     st.info(f"Open Portal in New Tab:\n\n`{portal_path}`")
     if st.button("🚀 How to open?"):
-        st.write("Copy The File Path And Paste It In Your Web Browser Address Bar.")
+        st.write("1. Copy the file path shown above.\n2. Paste it into your browser's address bar.\n3. Press Enter to launch the interactive graph.")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -729,23 +777,40 @@ with tab1:
         st.session_state.prompt_trigger = None
         msg_id = f"msg_{int(pd.Timestamp.now().timestamp()*1000)}"
 
-        # Add user message
+        # 1. Save & render user message
         st.session_state.messages.append({"role": "user", "content": prompt, "msg_id": msg_id + "_q"})
-
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        with st.chat_message("assistant"):
-
-            # ── MAP INTENT ───────────────────────────────────────────────
-            if is_map_intent(prompt):
+        # ── MAP INTENT ───────────────────────────────────────────────
+        if is_map_intent(prompt):
+            with st.chat_message("assistant"):
                 entities = extract_multiple_entities(prompt)
+
+                # Follow-up detection: if no real name → pull names from last data table
+                generic_phrases = {"show on map", "map pr show kro", "map par show karo",
+                                   "map pr dikhao", "map par dikhao", "map show kro",
+                                   "show map", "map pr", "map par", "on map"}
+                is_generic = not entities or all(
+                    e.lower().strip() in generic_phrases or len(e.strip()) <= 3
+                    for e in entities
+                )
+                if is_generic:
+                    for msg in reversed(st.session_state.messages):
+                        if msg.get("role") == "assistant" and msg.get("data") is not None:
+                            df_prev = pd.DataFrame(msg["data"]) if not isinstance(msg["data"], pd.DataFrame) else msg["data"]
+                            if "name" in df_prev.columns:
+                                entities = df_prev["name"].dropna().unique().tolist()
+                                st.info(f"🔍 Mapping **{len(entities)}** entities from previous result...")
+                                break
+
                 all_locs = []
-                for ent in entities:
-                    all_locs.extend(fetch_location_for_entity(ent))
+                with st.spinner("📡 Fetching locations..."):
+                    for ent in entities:
+                        all_locs.extend(fetch_location_for_entity(str(ent)))
 
                 if all_locs:
-                    reply = f"📍 Found **{len(all_locs)}** location(s) for: {', '.join(entities)}"
+                    reply = f"📍 Found **{len(all_locs)}** location(s) on map."
                     st.markdown(reply)
                     render_map(all_locs, key=f"new_map_{msg_id}")
                     st.session_state.messages.append({
@@ -753,17 +818,15 @@ with tab1:
                         "map_data": all_locs, "msg_id": msg_id,
                     })
                 else:
-                    reply = f"❌ No coordinates found for: {', '.join(entities)}"
+                    reply = f"❌ No coordinates found for: {', '.join(str(e) for e in entities)}"
                     st.markdown(reply)
                     st.session_state.messages.append({"role": "assistant", "content": reply, "msg_id": msg_id})
 
-            # ── SQL / DATA INTENT ────────────────────────────────────────
-            else:
+        # ── SQL / DATA INTENT ────────────────────────────────────────
+        else:
+            with st.chat_message("assistant"):
                 with st.spinner("🔍 Generating SQL..."):
-                    result = generate_and_run_sql(
-                        prompt,
-                        history=st.session_state.conv_history,
-                    )
+                    result = generate_and_run_sql(prompt, history=st.session_state.conv_history)
 
                 is_conv = result.get("is_conversational", False)
                 is_web  = result.get("is_web", False)
@@ -777,116 +840,51 @@ with tab1:
                         err_msg += f"\n\n```sql\n{result['sql']}\n```"
                     st.markdown(err_msg)
                     st.session_state.messages.append({"role": "assistant", "content": err_msg, "msg_id": msg_id})
-
                 else:
                     rows = result["results"]
                     sql  = result["sql"]
-
-                    # Cache successful query
                     save_to_query_cache(prompt, sql)
 
                     df_raw = pd.DataFrame(rows) if rows else pd.DataFrame()
                     df_num, df_disp = smart_format_dataframe(df_raw)
 
-                    # ── STREAMING SUMMARY ─────────────────────────────────
-                    # Double check if web intent exists even if flag is missing (robustness)
-                    web_keywords = ["google", "search", "latest", "news", "internet", "web"]
-                    force_web = any(k in prompt.lower() for k in web_keywords)
-                    
-                    avatar = "🌐" if (is_web or force_web) else None
-                    with st.chat_message("assistant", avatar=avatar):
-                        full_answer = st.write_stream(
-                            summarise_results_stream(prompt, rows[:50])   # cap rows for token safety
-                        )
+                    # Stream summary
+                    full_answer = st.write_stream(summarise_results_stream(prompt, rows[:50]))
 
-                    # Show table (Skip for web-search/conversational results to avoid redundancy)
-                    is_conv = result.get("is_conversational", False)
-                    if not df_disp.empty and not is_conv:
-                        h1, h2, _ = st.columns([1, 1, 5])
-                        with h1:
-                            if st.button("🗑️", key=f"del_new_{msg_id}"):
-                                delete_message(msg_id)
-                        with h2:
-                            csv = df_disp.to_csv(index=False).encode("utf-8")
-                            st.download_button("📥 CSV", csv, f"result_{msg_id}.csv", key=f"dl_new_{msg_id}")
-                        st.dataframe(df_disp, use_container_width=True)
-
-                    # SQL expander (Only for actual DB queries)
-                    if sql:
-                        with st.expander("🔍 View SQL"):
-                            st.code(sql, language="sql")
-
-                    # Auto-map
-                    if "latitude" in df_raw.columns and "longitude" in df_raw.columns:
-                        coord_df = df_raw.dropna(subset=["latitude","longitude"])
-                        if not coord_df.empty:
-                            with st.expander("🗺️ Map of Results", expanded=True):
-                                render_map(coord_df.to_dict("records"), key=f"new_sql_map_{msg_id}")
-
-                    # Smart chart
+                    # Chart Metadata
                     chart_data = None
+                    blacklist = {"id", "uuid", "code", "rank", "row_number", "password", "token", "secret", "email"}
                     if not df_num.empty and len(df_num.columns) >= 2:
                         x_col = df_num.columns[0]
-                        # Expanded blacklist: security-sensitive + metadata + meaningless ID cols
-                        blacklist = {
-                            "id", "uuid", "code", "rank", "row_number",
-                            # 🔴 Security — never chart these
-                            "password", "refresh_token", "token", "secret", "hash",
-                            # Personal info columns (usually NULL / non-metric)
-                            "email", "mobile", "phone", "image", "avatar", "photo",
-                            # Metadata / FK columns
-                            "deleted_at", "created_at", "updated_at",
-                            "permissionsid", "company_id",
-                            "cmp_manager_id", "cmp_doctor_id", "cmp_team_id",
-                            "cmp_customer_id", "cmp_hc_id", "cmp_territory_id",
-                        }
-                        y_cols = [
-                            c for c in df_num.columns[1:]
-                            if pd.api.types.is_numeric_dtype(df_num[c])
-                            and c.lower() not in blacklist
-                            and df_num[c].notna().any()          # skip all-NaN cols
-                            and df_num[c].abs().sum() > 0        # skip all-zero cols
-                        ]
-                        if y_cols:
-                            chart_data = [x_col, y_cols]
-                            plot_smart_chart(df_num, x_col, y_cols, f"📊 {prompt[:50]}", f"ch_new_{msg_id}")
+                        y_cols = [c for c in df_num.columns[1:] if pd.api.types.is_numeric_dtype(df_num[c]) and c.lower() not in blacklist]
+                        if y_cols: chart_data = [x_col, y_cols]
 
                     # Follow-ups
-                    with st.spinner("Generating follow-up suggestions..."):
-                        follow_ups = suggest_followups(prompt, rows[:20])
+                    with st.spinner("Suggestions..."):
+                        safe_rows = rows[:20] if rows else []
+                        follow_ups = suggest_followups(prompt, safe_rows)
 
-                    if follow_ups:
-                        st.write("---")
-                        st.write("🔍 **Suggested Follow-ups:**")
-                        fcols = st.columns(len(follow_ups))
-                        for fi, ft in enumerate(follow_ups):
-                            with fcols[fi]:
-                                if st.button(ft, key=f"fu_new_{msg_id}_{fi}"):
-                                    submit_question(ft)
-                                    st.rerun()
-
-                    # Persist message
+                    # Final Save to State
                     st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": full_answer,
+                        "role": "assistant", "content": full_answer,
                         "data": df_raw if not df_raw.empty else None,
-                        "sql": sql,
-                        "chart_data": chart_data,
-                        "follow_ups": follow_ups,
-                        "msg_id": msg_id,
-                        "is_web": is_web,
+                        "sql": sql, "chart_data": chart_data,
+                        "follow_ups": follow_ups, "msg_id": msg_id, "is_web": is_web,
                     })
 
-                    # Update conversation history for next turn
-                    st.session_state.conv_history.append({"role": "user",      "content": prompt})
-                    st.session_state.conv_history.append({"role": "assistant",  "content": full_answer})
+                    # Update history
+                    st.session_state.conv_history.append({"role": "user", "content": prompt})
+                    st.session_state.conv_history.append({"role": "assistant", "content": full_answer})
                     if len(st.session_state.conv_history) > 12:
                         st.session_state.conv_history = st.session_state.conv_history[-12:]
 
-        # Auto-save session
-        new_title = save_session(st.session_state.current_session, st.session_state.messages)
-        if new_title != st.session_state.current_session:
-            st.session_state.current_session = new_title
+        # ── PERSIST & RERUN ──────────────────────────────────────────
+        try:
+            new_title = save_session(st.session_state.current_session, st.session_state.messages)
+            if new_title != st.session_state.current_session:
+                st.session_state.current_session = new_title
+        except: pass
+        st.rerun()
 
 
 # ─────────────────────────────────────────────
