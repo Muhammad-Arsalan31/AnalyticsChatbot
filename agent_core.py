@@ -98,6 +98,14 @@ def _load_rag_context() -> str:
 
 7. ALWAYS double-quote table and column names to avoid case-sensitivity errors,
    e.g. "doctor_plan"."managerId".
+
+8. GOLM / MoM GROWTH: Calculate 'Growth Over Last Month' using LAG:
+   SELECT month_name, total_amount, 
+   (total_amount - LAG(total_amount) OVER (ORDER BY year_number, month_number)) / NULLIF(LAG(total_amount) OVER (ORDER BY year_number, month_number), 0) * 100 as "GOLM%"
+   FROM (SELECT year_number, month_number, month_name, SUM(total_amount) as total_amount FROM master_sale GROUP BY 1,2,3) sub;
+
+9. YoY GROWTH: Calculate 'Year Over Year' by comparing same month across years:
+   LAG(total_amount, 12) OVER (ORDER BY year_number, month_number)
 """
     return context
 
@@ -118,7 +126,7 @@ def _extract_sql(text: str) -> str:
     return text.strip()
 
 
-# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------10. CURRENCY: ALWAYS use 'PKR' or 'Rs.' for any monetary values. NEVER use '$'. All sales data is in Pakistani Rupees.
 # Core: generate SQL with self-correction retry loop
 # ---------------------------------------------------------------------------
 def _is_web_search_intent(text: str) -> bool:
@@ -147,6 +155,73 @@ def web_search_tavily(query: str) -> str:
         return "No relevant web search results found."
     except Exception as e:
         return f"⚠️ Web search failed (Network Error): {str(e)}"
+
+
+def generate_map_sql(
+    question: str,
+    history: List[Dict[str, str]] | None = None,
+) -> Dict[str, Any]:
+    """
+    SPECIALIZED AGENT FOR MAPS.
+    Focuses exclusively on fetching latitude, longitude, name, and sales data.
+    """
+    history = history or []
+    
+    MAP_EXPERT_PROMPT = f"""You are a specialized Geospatial Data Agent for a Pharmaceutical Dashboard.
+Your ONLY job is to generate SQL that returns coordinates and sales data for the Map UI.
+
+CORE SCHEMA:
+{_SCHEMA}
+
+STRICT MAPPING RULES:
+1. MANDATORY COLUMNS: You MUST always include "latitude" (float), "longitude" (float), "name" (string), and "address" (string).
+2. SALES INTEGRATION: Always JOIN with "master_sale" to include sales metrics (SUM("total_amount") as "total_sales").
+3. ENTITY TYPES: 
+   - If user asks for pharmacies/customers: Use table "customers".
+   - If user asks for doctors/health centres: Use table "healthcentres".
+4. IDENTIFIER MATCHING: 
+   - Use ILIKE for name searches (e.g. "name" ILIKE '%Bismillah%').
+5. NO CONVERSATION: Return ONLY SQL inside ```sql ... ``` block. No explanations.
+6. ERROR: If you cannot find a way to get coordinates, return 'ERROR: No coordinates available for this entity.'
+
+Example:
+SELECT c.name, c.latitude, c.longitude, c.address, SUM(ms.total_amount) as total_sales
+FROM customers c 
+JOIN master_sale ms ON c.id = ms.customer_id
+WHERE c.name ILIKE '%LIAQUATABAD%'
+GROUP BY 1, 2, 3, 4
+"""
+
+    messages = [{"role": "system", "content": MAP_EXPERT_PROMPT}]
+    for turn in history[-4:]:
+        messages.append(turn)
+    messages.append({"role": "user", "content": question})
+
+    last_error: str | None = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        if attempt > 1 and last_error:
+            messages.append({"role": "user", "content": f"Previous SQL failed: {last_error}. Fix and retry."})
+
+        try:
+            resp = client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
+                temperature=0,
+                timeout=30
+            )
+            raw = resp.choices[0].message.content.strip()
+            if "ERROR:" in raw: return {"sql": raw, "results": None, "error": raw, "retries": attempt}
+            sql = _extract_sql(raw)
+            messages.append({"role": "assistant", "content": raw})
+            results = run_sql_query(sql)
+            if isinstance(results, list):
+                return {"sql": sql, "results": results, "error": None, "retries": attempt}
+            last_error = results.get("error", "Unknown error")
+        except Exception as exc:
+            if attempt < MAX_RETRIES: continue
+            return {"sql": "", "results": None, "error": str(exc), "retries": attempt}
+
+    return {"sql": "", "results": None, "error": last_error, "retries": MAX_RETRIES}
 
 
 def generate_and_run_sql(
@@ -215,20 +290,25 @@ RULE 4 — NEVER EXPOSE SENSITIVE COLUMNS:
   Only select columns that are directly relevant to the user's question.
 
 RULE 5 — MAP / LOCATION QUERIES (lat/lng mandatory):
-  If the user asks to "show on map", "map pr dikhao", "location", or uses map-related words,
-  AND the query involves a manager's or doctor's visits/health centres:
-  You MUST SELECT hc.name, hc.latitude::float AS latitude, hc.longitude::float AS longitude,
-  hc.address FROM healthcentres hc JOIN manager_calls mc ON mc.healthcentre_id = hc.id
-  JOIN managers m ON m.id = mc.manager_id WHERE m.name ILIKE '%<name>%'
-  AND hc.latitude IS NOT NULL.
-  The UI will automatically render a map from the latitude/longitude columns.
-  NEVER omit latitude and longitude columns for map queries.
+  If the user asks to "show on map", "map pr dikhao", "location", or uses map-related words:
+  You MUST include columns "latitude" (as float) and "longitude" (as float) in your SELECT.
+  - For Customers/Pharmacies: JOIN "customers" with "master_sale" to get location and sales.
+  - For Doctors/HCs: JOIN "healthcentres" with "manager_calls" or "doctor_plan".
+  The UI automatically renders a map if these columns are present.
+  NEVER omit latitude and longitude for map-related requests.
 
 RULE 6 — AUTOMATIC SALES DATA:
   Whenever the user asks to list or show pharmacies, customers, or sales-related entities,
   you MUST automatically JOIN with 'master_sale' (internal) or 'ims_sale' (market)
   to include sales metrics (e.g. SUM(total_amount) or SUM(product_quantity)).
   Even if the user only asks for a list, providing their sales performance is mandatory.
+
+RULE 7 — MAP AND SALES INTEGRATION (CRITICAL):
+  When the user asks to "show on map" or "location", you MUST provide both location
+  (latitude, longitude) AND sales data (total_amount) in the same query whenever possible.
+  If the user asks for multiple entities (e.g. "show all Bismillah customers on map"),
+  return ALL matching records in a single query result so they can be plotted together.
+  NEVER return them one-by-one.
 
 - If the requested data does not exist in the schema respond with:
   ERROR: Data not available in database.
@@ -260,10 +340,14 @@ RULE 6 — AUTOMATIC SALES DATA:
                 model=LLM_MODEL,
                 messages=messages,
                 temperature=0,
+                timeout=30, # Increased timeout for stability
             )
             raw = resp.choices[0].message.content.strip()
         except Exception as exc:
-            return {"sql": "", "results": None, "error": str(exc), "retries": attempt}
+            if attempt < MAX_RETRIES:
+                last_error = f"Connection/Network error: {str(exc)}. Retrying..."
+                continue
+            return {"sql": "", "results": None, "error": f"Connection error after {MAX_RETRIES} attempts: {str(exc)}", "retries": attempt}
 
         if "ERROR:" in raw and "```sql" not in raw:
             return {"sql": raw, "results": None, "error": raw, "retries": attempt}
@@ -294,7 +378,7 @@ def summarise_results(question: str, results: list) -> str:
         f"The user asked: {question}\n\n"
         f"The database returned: {results}\n\n"
         "Convert this into a clear, concise, business-friendly natural language answer. "
-        "Do NOT mention SQL or technical database terms. "
+        "IMPORTANT: ALWAYS use 'Rs.' or 'PKR' for currency. NEVER use '$'. "
         "Use bullet points for lists. Be direct and analytical."
     )
     try:
@@ -323,7 +407,7 @@ def summarise_results_stream(
         f"The user asked: {question}\n\n"
         f"The database returned: {results}\n\n"
         "Convert this into a clear, concise, business-friendly natural language answer. "
-        "Do NOT mention SQL or technical database terms. "
+        "IMPORTANT: ALWAYS use 'Rs.' or 'PKR' for currency. NEVER use '$'. "
         "Use bullet points for lists. Be direct and analytical."
     )
     try:

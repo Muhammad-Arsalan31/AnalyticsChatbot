@@ -46,7 +46,8 @@ class DecimalEncoder(json.JSONEncoder):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def get_chats_dir() -> str:
-    username = st.session_state.get("username", "default")
+    # Always fallback to admin@gmail.com instead of 'default'
+    username = st.session_state.get("username", "admin@gmail.com")
     d = os.path.join("chats", str(username).strip())
     os.makedirs(d, exist_ok=True)
     return d
@@ -113,7 +114,7 @@ def save_to_query_cache(question: str, sql: str):
 def save_session(session_id: str, messages: list) -> str:
     if not messages:
         return session_id
-    username = st.session_state.get("username", "default")
+    username = st.session_state.get("username", "admin@gmail.com")
 
     # Auto-generate session title from first question
     title = session_id
@@ -138,7 +139,7 @@ def save_session(session_id: str, messages: list) -> str:
             mc["data"] = mc["data"].to_dict(orient="records")
         serialisable.append(mc)
 
-    json_str = json.dumps(serialisable, cls=DecimalEncoder)
+    json_str = json.dumps(serialisable, cls=DecimalEncoder, indent=4)
 
     # Write local JSON
     os.makedirs(get_chats_dir(), exist_ok=True)
@@ -273,6 +274,36 @@ def get_executive_kpis() -> dict:
 
 
 @st.cache_data(ttl=3600)
+def get_all_pharmacies_cached():
+    """High-performance cached retrieval of all pharmacy/customer records with sales."""
+    import psycopg2
+    from db import _CLEAN_URL
+    conn = psycopg2.connect(_CLEAN_URL)
+    sql = """
+        SELECT 
+            c.id, 
+            c.name, 
+            c.latitude::float, 
+            c.longitude::float,
+            COALESCE(SUM(ms.total_amount::numeric), 0) as total_sales,
+            COUNT(ms.id) as transactions
+        FROM customers c
+        LEFT JOIN master_sale ms ON ms.customer_name ILIKE c.name
+        WHERE c.name IS NOT NULL
+        GROUP BY c.id, c.name, c.latitude, c.longitude
+        ORDER BY total_sales DESC
+    """
+    try:
+        df = pd.read_sql(sql, conn)
+        return df
+    except Exception as e:
+        print(f"Cache error: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
+
+
+@st.cache_data(ttl=3600)
 def get_globe_data_cached(show_sales: bool):
     import psycopg2
     from db import _CLEAN_URL
@@ -324,21 +355,30 @@ def get_globe_data_cached(show_sales: bool):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def is_map_intent(text: str) -> bool:
-    """Returns True ONLY for simple location lookups (clinic/customer names).
-    Visit-based queries (manager ke health centers) go to SQL flow instead,
-    because the SQL returns lat/lng columns which auto-render the map.
+    """Returns True ONLY for simple location lookups (clinic/customer names)
+    or follow-up requests. Complex queries with filters (in Karachi, top 10, etc.)
+    must go to the SQL Agent because it handles spatial logic and filtering.
     """
     keywords = ["location","map","dikhao map","map pr","map par","nakshe","kahan hai",
                 "kahan ha","show on map","locate","address","coordinates","gps",
                 "kahan hain","location show"]
-    if not any(k in text.lower() for k in keywords):
+    
+    txt_lower = text.lower()
+    if not any(k in txt_lower for k in keywords):
         return False
-    # If query involves visits or person names → route to SQL (has lat/lng)
-    sql_route_signals = ["visit","visits","gaye","jane","manager","doctor","dr.",
-                         "ke health center","ke healthcentre","ki visits","ka visit",
-                         "ne kahan","kis health","kahan gaya"]
-    if any(s in text.lower() for s in sql_route_signals):
+
+    # ── SQL ROUTE SIGNALS ───────────────────────────────────────────────
+    # If the prompt contains complex filter/aggregation keywords, it's a SQL job.
+    sql_signals = [
+        "visit","visits","gaye","jane","manager","doctor","dr.",
+        "ke health center","ke healthcentre","ki visits","ka visit",
+        "ne kahan","kis health","kahan gaya",
+        " in ", " with ", " top ", " all ", " total ", " more than ", 
+        " less than ", " highest ", " lowest ", " list ", " show me "
+    ]
+    if any(s in txt_lower for s in sql_signals):
         return False   # Let SQL + auto-map handle it
+
     return True
 
 
@@ -346,12 +386,13 @@ def extract_entity_name(prompt: str) -> str:
     noise = ["ki location dikhao","ka location dikhao","location dikhao","location show kro",
              "ko map par dikhao","ko map pr dikhao","map par dikhao","map pr dikhao",
              "show on map","locate karo","kahan hai","kahan ha","kahan hain",
-             "location","map","dikhao","dikha","show","locate","address","coordinates","gps"]
+             "location","map","dikhao","dikha","show","locate","address","coordinates","gps",
+             "show me", "me on map", "me on"]
     cleaned = prompt.strip()
     for n in sorted(noise, key=len, reverse=True):
         cleaned = re.sub(n, "", cleaned, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r"^(ki|ka|ke|mujhe|mujhay|is|iss)\s+", "", cleaned, flags=re.IGNORECASE).strip()
-    cleaned = re.sub(r"\s+(ki|ka|ke|pr|par)$", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"^(ki|ka|ke|mujhe|mujhay|me|show|the|my|is|iss)\s+", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r"\s+(ki|ka|ke|pr|par|me|the)$", "", cleaned, flags=re.IGNORECASE).strip()
     cleaned = cleaned.strip(".,?!'\"").strip()
     if cleaned and cleaned.lower() not in ["none","","dr","doctor"]:
         return cleaned
@@ -389,7 +430,7 @@ def fetch_location_for_entity(entity_name: str) -> list:
                 ("customers",    "Customer",      "red"),
                 ("healthcentres","Health Centre", "blue"),
             ]:
-                # Fetch location + join sales from master_sale
+                # 1. Primary search: ILIKE %name%
                 cur.execute(
                     f'''
                     SELECT
@@ -402,11 +443,35 @@ def fetch_location_for_entity(entity_name: str) -> list:
                     LEFT JOIN master_sale ms ON ms.customer_name ILIKE t.name
                     WHERE t.name ILIKE %s AND t.latitude IS NOT NULL
                     GROUP BY t.name, t.latitude, t.longitude
-                    LIMIT 5
+                    LIMIT 20
                     ''',
                     (type_label, f"%{entity_name}%"),
                 )
                 rows = cur.fetchall()
+                
+                # 2. Fallback search: If no results, try first 2 words if name is long
+                if not rows and " " in entity_name.strip():
+                    parts = entity_name.strip().split()
+                    if len(parts) >= 2:
+                        fallback_name = f"{parts[0]} {parts[1]}"
+                        cur.execute(
+                            f'''
+                            SELECT
+                                t.name,
+                                t.latitude::float,
+                                t.longitude::float,
+                                %s AS entity_type,
+                                COALESCE(SUM(ms.total_amount::numeric), 0) AS total_sales
+                            FROM "{table}" t
+                            LEFT JOIN master_sale ms ON ms.customer_name ILIKE t.name
+                            WHERE t.name ILIKE %s AND t.latitude IS NOT NULL
+                            GROUP BY t.name, t.latitude, t.longitude
+                            LIMIT 10
+                            ''',
+                            (type_label, f"%{fallback_name}%"),
+                        )
+                        rows = cur.fetchall()
+
                 for row in rows:
                     addr = reverse_geocode(row["latitude"], row["longitude"])
                     results.append({
@@ -445,57 +510,68 @@ def delete_message(msg_id: str):
     st.rerun()
 
 
+@st.fragment
 def render_map(map_rows: list, key: str):
-    map_df = pd.DataFrame(map_rows)
-    try:
-        import folium
-        from streamlit_folium import st_folium
-        vlat, vlng = map_df["latitude"].mean(), map_df["longitude"].mean()
-        m = folium.Map(
-            location=[vlat, vlng], zoom_start=14,
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-            attr="Esri",
+    import plotly.express as px
+    if not map_rows:
+        st.warning("No coordinates to display.")
+        return
+
+    df = pd.DataFrame(map_rows)
+    # Ensure numeric coords and clean data
+    df["latitude"]  = pd.to_numeric(df.get("latitude"),  errors="coerce")
+    df["longitude"] = pd.to_numeric(df.get("longitude"), errors="coerce")
+    df = df.dropna(subset=["latitude", "longitude"])
+
+    if df.empty:
+        st.warning("Coordinates are missing or invalid.")
+        return
+
+    # Normalize Sales for marker sizing
+    sales_col = next((c for c in ["total_sales", "sales", "invoice_amount"] if c in df.columns), None)
+    if sales_col:
+        df[sales_col] = pd.to_numeric(df[sales_col], errors="coerce").fillna(0)
+        # Add a minimum size column for Plotly
+        df["marker_size"] = 10 + (df[sales_col] / (df[sales_col].max() or 1) * 20)
+    else:
+        df["marker_size"] = 12
+
+    # Color mapping
+    color_map = {"Customer": "#EF4444", "Health Centre": "#3B82F6", "Doctor": "#A855F7"}
+    color_col = next((c for c in ["entity_type", "type", "pin_color"] if c in df.columns), None)
+
+    # Hover data
+    hover_dict = {"latitude": False, "longitude": False, "marker_size": False}
+    if "address" in df.columns: hover_dict["address"] = True
+    if sales_col: hover_dict[sales_col] = ":,.0f"
+
+    fig = px.scatter_mapbox(
+        df,
+        lat="latitude",
+        lon="longitude",
+        color=color_col if color_col else None,
+        color_discrete_map=color_map if color_col else None,
+        size="marker_size",
+        size_max=25,
+        hover_name="name",
+        hover_data=hover_dict,
+        zoom=12,
+        height=450
+    )
+
+    fig.update_layout(
+        mapbox_style="carto-positron",
+        margin={"r":0,"t":0,"l":0,"b":0},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        showlegend=True if color_col else False,
+        legend=dict(
+            yanchor="top", y=0.99, xanchor="left", x=0.01,
+            bgcolor="rgba(255, 255, 255, 0.6)"
         )
+    )
 
-        # Colour map for entity types
-        color_map = {"red": "#ef4444", "blue": "#3b82f6", "green": "#22c55e", "orange": "#f97316"}
-
-        for _, row in map_df.iterrows():
-            sales_val  = row.get("total_sales", row.get("sales", 0)) or 0
-            sales_fmt  = f"PKR {float(sales_val):,.0f}" if sales_val else "No Sales Data"
-            sales_color = "#22c55e" if sales_val else "#94a3b8"
-
-            popup_html = (
-                f"<div style='font-family:sans-serif;min-width:180px'>"
-                f"<b style='font-size:14px'>{row['name']}</b><br>"
-                f"<span style='color:#64748b'>{row.get('entity_type', '')}</span><br><hr style='margin:4px 0'>"
-                f"<b style='color:{sales_color}'>💰 Sales: {sales_fmt}</b><br>"
-                f"<small>📍 {row.get('address', '')}</small>"
-                f"</div>"
-            )
-
-            # Scale circle radius by sales (5–20px range)
-            max_sales = map_df.get("total_sales", map_df.get("sales", pd.Series([1]))).max() or 1
-            radius = 8 + int(12 * (float(sales_val) / float(max_sales))) if sales_val else 8
-
-            pin_color = row.get("pin_color", "blue")
-            fill_hex   = color_map.get(pin_color, "#3b82f6")
-
-            folium.CircleMarker(
-                location=[row["latitude"], row["longitude"]],
-                radius=radius,
-                color=fill_hex,
-                fill=True,
-                fill_color=fill_hex,
-                fill_opacity=0.75,
-                popup=folium.Popup(popup_html, max_width=280),
-                tooltip=f"{row['name']}  |  {sales_fmt}",
-            ).add_to(m)
-
-        st_folium(m, width=700, height=420, key=key)
-    except Exception as exc:
-        st.warning(f"Map render error: {exc}")
-        st.map(map_df.rename(columns={"latitude": "lat", "longitude": "lon"})[["lat", "lon"]])
+    st.plotly_chart(fig, use_container_width=True, key=key)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -506,7 +582,7 @@ for key, default in [
     ("messages",        []),
     ("current_session", f"New_Session_{int(pd.Timestamp.now().timestamp())}"),
     ("prompt_trigger",  None),
-    ("username",        None),
+    ("username",        "admin@gmail.com"),
     ("conv_history",    []),   # LLM conversation history for follow-ups
 ]:
     if key not in st.session_state:
@@ -599,7 +675,6 @@ with st.sidebar:
         st.session_state.conv_history = []
         st.session_state.current_session = f"New_Session_{int(pd.Timestamp.now().timestamp())}"
         st.rerun()
-
     st.divider()
     st.header("📂 Sessions")
 
@@ -707,8 +782,8 @@ with tab1:
             with cols[i % 2]:
                 st.button(s, key=f"starter_{i}", on_click=submit_question, args=(s,))
 
-    # Render existing messages
-    for idx, message in enumerate(st.session_state.messages):
+    @st.fragment
+    def display_chat_message(idx, message):
         # Determine avatar: standard for AI, Globe for web search
         avatar = "🌐" if message.get("is_web") else None
         with st.chat_message(message["role"], avatar=avatar):
@@ -728,6 +803,7 @@ with tab1:
                 with h1:
                     if st.button("🗑️", key=f"del_{m_id}", help="Delete"):
                         delete_message(m_id)
+                        st.rerun() # We still need rerun for deletion to update the list
                 with h2:
                     csv = df_disp.to_csv(index=False).encode("utf-8")
                     st.download_button("📥 CSV", csv, f"data_{idx}.csv", key=f"dl_{idx}")
@@ -772,6 +848,10 @@ with tab1:
                             submit_question(ft)
                             st.rerun()
 
+    # Render existing messages using fragments
+    for idx, message in enumerate(st.session_state.messages):
+        display_chat_message(idx, message)
+
     # ── Process new prompt ───────────────────────────────────────────────
     if prompt:
         st.session_state.prompt_trigger = None
@@ -785,42 +865,38 @@ with tab1:
         # ── MAP INTENT ───────────────────────────────────────────────
         if is_map_intent(prompt):
             with st.chat_message("assistant"):
-                entities = extract_multiple_entities(prompt)
+                with st.spinner("📡 Map Expert is searching locations..."):
+                    from agent_core import generate_map_sql
+                    result = generate_map_sql(prompt, history=st.session_state.conv_history)
 
-                # Follow-up detection: if no real name → pull names from last data table
-                generic_phrases = {"show on map", "map pr show kro", "map par show karo",
-                                   "map pr dikhao", "map par dikhao", "map show kro",
-                                   "show map", "map pr", "map par", "on map"}
-                is_generic = not entities or all(
-                    e.lower().strip() in generic_phrases or len(e.strip()) <= 3
-                    for e in entities
-                )
-                if is_generic:
-                    for msg in reversed(st.session_state.messages):
-                        if msg.get("role") == "assistant" and msg.get("data") is not None:
-                            df_prev = pd.DataFrame(msg["data"]) if not isinstance(msg["data"], pd.DataFrame) else msg["data"]
-                            if "name" in df_prev.columns:
-                                entities = df_prev["name"].dropna().unique().tolist()
-                                st.info(f"🔍 Mapping **{len(entities)}** entities from previous result...")
-                                break
-
-                all_locs = []
-                with st.spinner("📡 Fetching locations..."):
-                    for ent in entities:
-                        all_locs.extend(fetch_location_for_entity(str(ent)))
-
-                if all_locs:
-                    reply = f"📍 Found **{len(all_locs)}** location(s) on map."
-                    st.markdown(reply)
-                    render_map(all_locs, key=f"new_map_{msg_id}")
-                    st.session_state.messages.append({
-                        "role": "assistant", "content": reply,
-                        "map_data": all_locs, "msg_id": msg_id,
-                    })
-                else:
-                    reply = f"❌ No coordinates found for: {', '.join(str(e) for e in entities)}"
+                if result["error"]:
+                    reply = f"❌ **Map Search Failed:** {result['error']}"
                     st.markdown(reply)
                     st.session_state.messages.append({"role": "assistant", "content": reply, "msg_id": msg_id})
+                else:
+                    all_locs = result["results"]
+                    sql_used = result.get("sql", "")
+                    
+                    if all_locs:
+                        reply = f"📍 Plotted **{len(all_locs)}** location(s) using Map Intelligence."
+                        st.markdown(reply)
+                        render_map(all_locs, key=f"new_map_{msg_id}")
+                        
+                        if sql_used:
+                            with st.expander("🔍 View Map Query"):
+                                st.code(sql_used, language="sql")
+
+                        st.session_state.messages.append({
+                            "role": "assistant", 
+                            "content": reply,
+                            "map_data": all_locs, 
+                            "sql": sql_used,
+                            "msg_id": msg_id,
+                        })
+                    else:
+                        reply = "❌ No matching locations or coordinates found in the database."
+                        st.markdown(reply)
+                        st.session_state.messages.append({"role": "assistant", "content": reply, "msg_id": msg_id})
 
         # ── SQL / DATA INTENT ────────────────────────────────────────
         else:
@@ -851,39 +927,84 @@ with tab1:
                     # Stream summary
                     full_answer = st.write_stream(summarise_results_stream(prompt, rows[:50]))
 
+                    # Render Table & CSV (if data exists)
+                    if not df_disp.empty and not is_conv:
+                        h1, h2, _ = st.columns([1, 1, 5])
+                        with h1:
+                            if st.button("🗑️", key=f"del_new_{msg_id}"): delete_message(msg_id)
+                        with h2:
+                            csv = df_disp.to_csv(index=False).encode("utf-8")
+                            st.download_button("📥 CSV", csv, f"result_{msg_id}.csv", key=f"dl_new_{msg_id}")
+                        st.dataframe(df_disp, use_container_width=True)
+
+                    # SQL Expander
+                    if sql:
+                        with st.expander("🔍 View SQL"): st.code(sql, language="sql")
+
+                    # Auto-map if coordinates found in SQL result
+                    if "latitude" in df_raw.columns and "longitude" in df_raw.columns:
+                        coord_df = df_raw.dropna(subset=["latitude","longitude"])
+                        if not coord_df.empty:
+                            with st.expander("🗺️ Map of Results", expanded=True):
+                                render_map(coord_df.to_dict("records"), key=f"new_sql_map_{msg_id}")
+
                     # Chart Metadata
                     chart_data = None
                     blacklist = {"id", "uuid", "code", "rank", "row_number", "password", "token", "secret", "email"}
                     if not df_num.empty and len(df_num.columns) >= 2:
                         x_col = df_num.columns[0]
                         y_cols = [c for c in df_num.columns[1:] if pd.api.types.is_numeric_dtype(df_num[c]) and c.lower() not in blacklist]
-                        if y_cols: chart_data = [x_col, y_cols]
+                        if y_cols:
+                            chart_data = [x_col, y_cols]
+                            plot_smart_chart(df_num, x_col, y_cols, f"📊 {prompt[:50]}", f"ch_new_{msg_id}")
 
                     # Follow-ups
                     with st.spinner("Suggestions..."):
                         safe_rows = rows[:20] if rows else []
                         follow_ups = suggest_followups(prompt, safe_rows)
 
+                    # FIX 1: Serialize DataFrame → list of dicts for reliable rerun survival
+                    data_payload = df_raw.to_dict("records") if not df_raw.empty else None
+
                     # Final Save to State
                     st.session_state.messages.append({
                         "role": "assistant", "content": full_answer,
-                        "data": df_raw if not df_raw.empty else None,
+                        "data": data_payload,
                         "sql": sql, "chart_data": chart_data,
                         "follow_ups": follow_ups, "msg_id": msg_id, "is_web": is_web,
                     })
 
-                    # Update history
-                    st.session_state.conv_history.append({"role": "user", "content": prompt})
-                    st.session_state.conv_history.append({"role": "assistant", "content": full_answer})
+                    # FIX 3: Rich context injection for follow-ups
+                    # If rows exist, prepend a compact summary so short follow-ups
+                    # (e.g. "koi 5 ke") have enough context to be understood.
+                    context_note = ""
+                    if rows:
+                        col_names = list(rows[0].keys()) if rows else []
+                        first_vals = [str(r.get(col_names[0], "")) for r in rows[:5]]
+                        context_note = f" [Previous result had {len(rows)} rows. First column '{col_names[0]}' values: {', '.join(first_vals)}...]"
+
+                    # Update conv_history with context-enriched prompt
+                    st.session_state.conv_history.append({"role": "user",      "content": prompt + context_note})
+                    st.session_state.conv_history.append({"role": "assistant",  "content": full_answer})
                     if len(st.session_state.conv_history) > 12:
                         st.session_state.conv_history = st.session_state.conv_history[-12:]
 
         # ── PERSIST & RERUN ──────────────────────────────────────────
-        try:
-            new_title = save_session(st.session_state.current_session, st.session_state.messages)
-            if new_title != st.session_state.current_session:
-                st.session_state.current_session = new_title
-        except: pass
+        # FIX 2: Run save_session in a background thread.
+        # The LLM title-generation call inside save_session takes 2-3 seconds.
+        # Previously this BLOCKED st.rerun(), causing the answer to vanish.
+        # Now st.rerun() fires IMMEDIATELY and save runs silently in background.
+        import threading
+        def _bg_save(session_id, msgs):
+            try:
+                save_session(session_id, msgs)
+            except Exception:
+                pass
+        threading.Thread(
+            target=_bg_save,
+            args=(st.session_state.current_session, list(st.session_state.messages)),
+            daemon=True,
+        ).start()
         st.rerun()
 
 
@@ -895,37 +1016,69 @@ with tab2:
     show_sales = st.checkbox("💰 Show Sales Overlay", value=False)
 
     try:
+        import plotly.express as px
         h_df, c_df, d_df = get_globe_data_cached(show_sales)
-        map_data = pd.concat([h_df, c_df, d_df])
-        vlat = map_data["latitude"].mean() if not map_data.empty else 24.86
-        vlng = map_data["longitude"].mean() if not map_data.empty else 67.00
+        
+        # Add labels for coloring
+        h_df["type"] = "Health Centre"
+        c_df["type"] = "Customer"
+        d_df["type"] = "Doctor"
+        
+        map_data = pd.concat([h_df, c_df, d_df], ignore_index=True)
+        
+        if not map_data.empty:
+            # Clean numeric coords
+            map_data["latitude"] = pd.to_numeric(map_data["latitude"], errors="coerce")
+            map_data["longitude"] = pd.to_numeric(map_data["longitude"], errors="coerce")
+            map_data = map_data.dropna(subset=["latitude", "longitude"])
+            
+            # Marker size based on sales if overlay is on
+            if show_sales and "sales" in map_data.columns:
+                # FIX: Ensure sales is numeric and NaNs are 0 to prevent Plotly crash
+                map_data["sales"] = pd.to_numeric(map_data["sales"], errors="coerce").fillna(0)
+                max_val = map_data["sales"].max() or 1
+                map_data["marker_size"] = 8 + (map_data["sales"] / max_val * 20)
+            else:
+                map_data["marker_size"] = 10
 
-        import folium
-        from streamlit_folium import st_folium
+            color_map = {"Health Centre": "#EF4444", "Customer": "#F97316", "Doctor": "#3B82F6"}
 
-        m = folium.Map(
-            location=[vlat, vlng], zoom_start=11,
-            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-            attr="Esri",
-        )
-        for df, color, label in [(h_df,"red","HC"), (c_df,"orange","Cust")]:
-            for _, row in df.iterrows():
-                addr = row.get("address") or row.get("brick_name", "")
-                popup = f"<b>{row['name']}</b><br>{label}<br>📍 {addr}"
-                if show_sales and row["sales"] > 0:
-                    popup += f"<br><b style='color:green'>PKR {row['sales']:,.0f}</b>"
-                folium.CircleMarker(
-                    [row["latitude"], row["longitude"]],
-                    radius=7 if show_sales and row["sales"] > 20000 else 5,
-                    popup=folium.Popup(popup, max_width=250),
-                    color=color, fill=True,
-                ).add_to(m)
+            fig = px.scatter_mapbox(
+                map_data,
+                lat="latitude",
+                lon="longitude",
+                color="type",
+                color_discrete_map=color_map,
+                size="marker_size",
+                size_max=25,
+                hover_name="name",
+                hover_data={
+                    "type": True,
+                    "address": True,
+                    "latitude": False,
+                    "longitude": False,
+                    "marker_size": False,
+                    "sales": ":,.0f" if "sales" in map_data.columns else False
+                },
+                zoom=11,
+                height=600
+            )
 
-        for _, row in d_df.iterrows():
-            folium.CircleMarker([row["latitude"], row["longitude"]], radius=4, popup=f"{row['name']} (Doc)", color="blue", fill=True).add_to(m)
+            # Use Esri World Imagery for Satellite look
+            fig.update_layout(
+                mapbox_style="white-bg",
+                mapbox_layers=[{
+                    "below": 'traces',
+                    "sourcetype": "raster",
+                    "source": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
+                }],
+                margin={"r":0,"t":0,"l":0,"b":0},
+                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor="rgba(0,0,0,0.5)", font=dict(color="white"))
+            )
 
-        st_folium(m, width=900, height=500, key=f"globe_{show_sales}")
-        st.info("🔴 Health Centres  |  🟠 Customers  |  🔵 Doctors")
+            st.plotly_chart(fig, use_container_width=True, key=f"globe_plotly_{show_sales}")
+        else:
+            st.info("No data available to display on the globe.")
 
     except Exception as e:
         st.error(f"Globe error: {e}")
