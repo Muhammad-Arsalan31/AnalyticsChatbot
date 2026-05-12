@@ -174,6 +174,7 @@ CORE SCHEMA:
 {_SCHEMA}
 
 STRICT MAPPING RULES:
+0. DATA SAFETY (CRITICAL): You are strictly READ-ONLY. NEVER generate SQL that uses 'DELETE', 'DROP', 'TRUNCATE', 'UPDATE', 'INSERT', or 'ALTER'. If a user asks to delete or modify data, REFUSE and explain that you are a read-only analytics assistant.
 1. MANDATORY COLUMNS: You MUST always include "latitude" (float), "longitude" (float), "name" (string), and "address" (string).
 2. SALES INTEGRATION: Always JOIN with "master_sale" to include sales metrics (SUM("total_amount") as "total_sales").
 3. ENTITY TYPES: 
@@ -264,6 +265,7 @@ BUSINESS CONTEXT & SQL RULES:
 
 STRICT OUTPUT RULES:
 - Output ONLY the SQL query inside a ```sql ... ``` code block.
+- RULE 0 — DATA SAFETY (CRITICAL): You are strictly READ-ONLY. NEVER generate SQL that uses 'DELETE', 'DROP', 'TRUNCATE', 'UPDATE', 'INSERT', 'ALTER', or any command that modifies the database. If a user asks to delete, drop, or change data, you MUST REFUSE and explain that your security policy only allows data analysis and visualization.
 - Use only READ-ONLY SELECT / WITH queries.
 - Always double-quote identifiers.
 - Use LIMIT 10 unless the user specifies otherwise.

@@ -6,32 +6,29 @@ A premium, enterprise-grade AI agent designed for **Pharmaceutical Business Inte
 
 ## 🚀 Key Features
 
-- **Strategic SQL Generation**: Automatically converts complex business questions into optimized PostgreSQL queries.
-- **RAG-Powered Memory**: Uses a custom "Knowledge Base" (`knowledge/`) to understand pharmaceutical jargon and specific database mappings.
-- **Premium UI/UX**: Overhauled Streamlit interface with glassmorphism, custom Google Fonts (Outfit/Inter), and smooth animations.
-- **Automated Visualization**: Smart charting logic that automatically selects the best visualization (Bar, Line, etc.) for your data while blacklisting non-metric columns.
-- **Geospatial Intelligence**: Integrated Satellite Mapping (Folium) and High-Speed 3D Visualization (WebGL/PyDeck) for field data.
-- **Persistent Interaction History**: Maps, charts, and complex analytical results are now fully saved in the chat history, surviving page refreshes and server restarts.
+- **Strategic SQL Generation**: Automatically converts complex business questions into optimized PostgreSQL queries with self-correction capabilities.
+- **Specialized Map Expert Agent**: A dedicated sub-agent for geospatial intelligence that mandates 'address', 'latitude', and 'longitude' extraction for high-precision Mapbox and Globe visualizations.
+- **RAG-Powered Memory**: Uses a custom "Knowledge Base" (`knowledge/`) to understand pharmaceutical jargon, specific database mappings, and regional sales logic.
+- **PKR Currency Enforcement**: All financial outputs and LLM summaries are strictly formatted using **PKR / Rs.** currency standards.
+- **Premium UI/UX**: Overhauled Streamlit interface featuring glassmorphism, modern typography (Outfit/Inter), and a minimalist sidebar for professional usage.
+- **Automated Visualization**: Smart charting logic that automatically selects the best visualization (Bar, Line, etc.) while filtering out non-metric data.
+- **Persistent & Readable History**: Chat logs are saved in human-readable, pretty-printed JSON (`indent=4`) under the central `admin@gmail.com` directory, ensuring easy debugging and data persistence.
 - **Enterprise Security**: 
-  - Database-backed authentication for Managers and Users.
-  - User-specific chat isolation (each user sees only their own history).
-  - Secure "Master Key" fallback for administrators.
-- **Advanced Geocoding Cache**: Persistent disk-based caching (`geo_cache.json`) for coordinates, ensuring zero-latency address lookup after the first fetch.
-- **Reliable Message Management**: Integrated 🗑️ deletion system that removes both the question AND its specific output from memory.
+  - User-specific chat isolation (consolidated under administrator profiles).
+  - Secure connection retry logic (3 attempts) with 30s timeouts for robust database interaction.
+- **Advanced Geocoding Cache**: Persistent disk-based caching (`geo_cache.json`) ensures zero-latency address lookups after the first retrieval.
 
 ---
 
 ## 🛠️ Project Structure
 
 ```text
-├── app.py                # Main Streamlit Application (Web Portal)
-├── agent.py              # CLI Version for quick testing
+├── app.py                # Main Streamlit Dashboard (Enforced admin session)
+├── agent_core.py         # AI Logic, Map Expert Prompt, and SQL Generation
+├── db.py                 # Database Pool & Parameterized Auth
 ├── requirements.txt      # Python Dependencies
-├── knowledge/            # Intelligence Layer
-│   ├── business_terms.md # Dictionary of industry terminology
-│   └── query_library.md  # Reference SQL patterns for the LLM
-├── chats/                # Encrypted/User-Specific Chat History
-│   └── {user_email}/     # Isolated session storage & query cache
+├── knowledge/            # Intelligence Layer (Business Terms & SQL Patterns)
+├── chats/                # Structured Chat History (Consolidated under admin@gmail.com)
 └── prisma/               # Database Architecture & Schema
 ```
 
@@ -66,18 +63,13 @@ Start the web dashboard:
 streamlit run app.py
 ```
 
-Run a quick query via CLI:
-```bash
-python agent.py "What were the total sales in Karachi last month?"
-```
-
 ---
 
 ## 💡 Strategic Recommendations
-- **Naming Conventions**: The agent currently maps "Antibiotics" to `Product Group 1` as per the available database labels.
-- **Deletion**: Use the 🗑️ icon to clean up conversation pairs. This helps in keeping the LLM context clear for long sessions.
-- **Custom Bricks**: Always use `ILIKE` for geographical searches (already handled by the agent).
+- **Naming Conventions**: The agent accurately maps "Antibiotics" to `Product Group 1` and handles complex area names via `ILIKE`.
+- **Currency Standards**: Always expect reports in **Rs.** as the system is optimized for Pakistani market analysis.
+- **Map Queries**: Use specific prompts like "show on map" to trigger the Map Expert Agent for the best coordinate accuracy.
 
 ---
 
-Developed for **Advanced Pharma Sales Analysis**. 🚀👔🛠️📈
+Developed for **Advanced Pharma Sales Analysis & Strategic Intelligence**. 🚀👔🛠️📈

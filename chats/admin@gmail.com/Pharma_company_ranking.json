@@ -1,0 +1,21 @@
+[
+    {
+        "role": "user",
+        "content": "Negative GOLM wali top 5 pharmacies ki list.",
+        "msg_id": "msg_1778586889758_q"
+    },
+    {
+        "role": "assistant",
+        "content": "Hamare pass aik specific list available nahi hai jo negative GOLM wali top 5 pharmacies ki information provide kare. Yeh data unavailable hai aur hum is mandarjaat par ko.) specific information provide nahi kar sakte. Agar apko pharmacies ki general information ya phir specific locations ki pharmacies ki list chahiye, to hum us par apko madad kar sakte hain.",
+        "data": null,
+        "sql": "WITH pharmacy_sales AS (\n  SELECT \n    \"customer_name\" AS \"Pharmacy Name\", \n    EXTRACT(MONTH FROM \"invoice_date\") AS \"Month\", \n    SUM(\"total_amount\") AS \"Total Sales\"\n  FROM \"master_sale\" \n  WHERE \"customer_type\" = 'Pharmacies' \n  GROUP BY 1, 2\n),\ngolm_calc AS (\n  SELECT \n    \"Pharmacy Name\", \n    \"Month\", \n    \"Total Sales\", \n    LAG(\"Total Sales\") OVER (PARTITION BY \"Pharmacy Name\" ORDER BY \"Month\") AS \"Prev Month Sales\",\n    (\"Total Sales\" - LAG(\"Total Sales\") OVER (PARTITION BY \"Pharmacy Name\" ORDER BY \"Month\")) / NULLIF(LAG(\"Total Sales\") OVER (PARTITION BY \"Pharmacy Name\" ORDER BY \"Month\"), 0) * 100 AS \"GOLM%\"\n  FROM pharmacy_sales\n)\nSELECT \n  \"Pharmacy Name\", \n  \"GOLM%\"\nFROM golm_calc\nWHERE \"GOLM%\" < 0\nORDER BY \"GOLM%\" ASC\nLIMIT 5;",
+        "chart_data": null,
+        "follow_ups": [
+            "Kya GOLM wali pharmacies ki list available hai?",
+            "Pharmacies ki list ke liye kya criteria hai?",
+            "Kya maine search criteria sahi enter kiya hai?"
+        ],
+        "msg_id": "msg_1778586889758",
+        "is_web": false
+    }
+]
